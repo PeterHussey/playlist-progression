@@ -1,0 +1,14 @@
+-- Playlist Progression Prototype — Schema Initialisation
+-- Matches docs/SCHEMA.md exactly. Run with:
+--   sqlite3 database/playlist.db < database/init.db
+
+CREATE TABLE IF NOT EXISTS tracks (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_path   TEXT    UNIQUE NOT NULL,
+    title       TEXT,
+    artist      TEXT,
+    duration_sec REAL,
+    feature_json TEXT,
+    clap_embedding BLOB,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
