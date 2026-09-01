@@ -21,6 +21,34 @@ Ingests local audio files → extracts Essentia DSP features + optional CLAP emb
 
 Total: **18 dimensions** per track, stored as a flat `double[]` in `Track.features` and as JSON in `tracks.feature_json`.
 
+### Essentia Descriptor Definitions
+
+| Descriptor | Essentia Name | Range | What It Measures |
+|------------|---------------|-------|------------------|
+| **Spectral Centroid (mean)** | `lowlevel.spectral_centroid.mean` | 0–Nyquist Hz | "Brightness" — centre of mass of the spectrum. Higher = brighter, more high-frequency energy. |
+| **Spectral Centroid (std)** | `lowlevel.spectral_centroid.std` | ≥ 0 | Variability of brightness over time. High = timbral fluctuation (e.g., filter sweeps, evolving textures). |
+| **Spectral Complexity (mean)** | `lowlevel.spectral_complexity.mean` | ≥ 0 | Number of spectral peaks — proxy for harmonic density. High = rich harmonics (piano, strings); low = pure tones (sine, flute). |
+| **Spectral Complexity (std)** | `lowlevel.spectral_complexity.std` | ≥ 0 | Harmonic density variation. High = evolving harmonic content (arpeggios, modulation). |
+| **Spectral Rolloff (mean)** | `lowlevel.spectral_rolloff.mean` | 0–Nyquist Hz | Frequency below which 85% of energy lies. Higher = more high-frequency content (cymbals, noise). |
+| **Spectral Rolloff (std)** | `lowlevel.spectral_rolloff.std` | ≥ 0 | High-frequency energy variation. |
+| **Key + Scale** | `tonal.hkey_scale` | Key: 0–11 (C–B), Scale: 0=major, 1=minor | Estimated musical key and mode. Used for tonal distance (circle-of-fifths aware). |
+| **Chord** | `tonal.chord` | Chord label string | Estimated chord at each frame; aggregated to dominant chord. |
+| **BPM (Tempo)** | `rhythm.bpm` | ~40–200 | Beats per minute. Primary rhythmic anchor for directed jumps. |
+| **Danceability** | `rhythm.danceability` | 0–1 | How suitable for dancing — based on beat strength, regularity, tempo. High = steady 4/4 groove. |
+| **Mood: Happy** | `highlevel.mood_happy` | 0–1 | Positive, upbeat, major-key feel. |
+| **Mood: Sad** | `highlevel.mood_sad` | 0–1 | Melancholic, minor-key, slow tempo feel. |
+| **Mood: Aggressive** | `highlevel.mood_aggressive` | 0–1 | High energy, distortion, fast tempo, heavy rhythm. |
+| **Mood: Relaxed** | `highlevel.mood_relaxed` | 0–1 | Low energy, slow tempo, soft dynamics. |
+| **Mood: Electronic** | `highlevel.mood_electronic` | 0–1 | Synthetic timbres, drum machines, quantised rhythm. |
+| **Mood: Party** | `highlevel.mood_party` | 0–1 | High energy, danceable, celebratory. |
+| **Mood: Acoustic** | `highlevel.mood_acoustic` | 0–1 | Organic timbres, minimal electronic processing. |
+
+**Notes:**
+- All `lowlevel.*` descriptors are computed frame-wise (typically 44100/2048 ≈ 21.5 ms frames) then aggregated to mean/std across the track.
+- `tonal.*` descriptors use the HPCP (Harmonic Pitch Class Profile) chroma representation.
+- `highlevel.mood_*` are classifier outputs from pre-trained models (Essentia's Gaia/MTG-Jamendo models).
+- Mood scores are **not mutually exclusive** — a track can score high on both `mood_happy` and `mood_party`.
+
 **CLAP (semantic embeddings)** — `scripts/extract_clap.py` runs LAION-CLAP (via `laion-clap` Python package) to produce a 512-dim embedding vector per track. Stored as JSON array in `tracks.clap_embedding`. Optional — pipeline works without it.
 
 ### Distance Computation
