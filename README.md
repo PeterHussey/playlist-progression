@@ -6,6 +6,86 @@ A weekend-scale Python prototype for music similarity and playlist generation fr
 
 Ingests local audio files → extracts Essentia DSP features + optional CLAP embeddings via subprocess → stores in SQLite → generates a JSON playlist using a branching recommender (near/mid/far distance bands + axis-controlled jumps).
 
+## Branching Methodology
+
+### Feature Extraction Pipeline
+
+**Essentia (DSP descriptors)** — `scripts/extract_essentia.py` calls the Essentia CLI to compute a fixed descriptor set per track:
+
+| Axis Group | Descriptors | Dimensions |
+|------------|-------------|------------|
+| **Timbre** | `lowlevel.spectral_centroid` (mean, std), `lowlevel.spectral_complexity` (mean, std), `lowlevel.spectral_rolloff` (mean, std) | 6 |
+| **Tonal** | `tonal.hkey_scale` (key + scale), `tonal.chord` (chord) | 3 |
+| **Rhythm** | `rhythm.bpm` (tempo), `rhythm.danceability` | 2 |
+| **Mood** | `highlevel.mood_happy`, `mood_sad`, `mood_aggressive`, `mood_relaxed`, `mood_electronic`, `mood_party`, `mood_acoustic` | 7 |
+
+Total: **18 dimensions** per track, stored as a flat `double[]` in `Track.features` and as JSON in `tracks.feature_json`.
+
+**CLAP (semantic embeddings)** — `scripts/extract_clap.py` runs LAION-CLAP (via `laion-clap` Python package) to produce a 512-dim embedding vector per track. Stored as JSON array in `tracks.clap_embedding`. Optional — pipeline works without it.
+
+### Distance Computation
+
+`BranchSampler.compute_distance()` uses **standardised weighted Euclidean distance** across the 18 Essentia axes:
+
+```
+distance = sqrt( Σ weight[i] * (z_a[i] - z_b[i])² )
+```
+
+Where `z = (value - population_mean) / population_stddev` per axis. Axis weights are configurable (default 1.0). Population statistics are computed across the full library at sampler initialisation.
+
+CLAP embeddings are **not used for distance** in this prototype — they're stored for future semantic similarity experiments.
+
+### Three Distance Bands
+
+Given a seed track, candidates are partitioned by standardised distance:
+
+| Band | Threshold | Purpose |
+|------|-----------|---------|
+| **Near** | `d ≤ 0.3σ` | Close neighbours — minimal perceptual change. Establishes mood/groove. |
+| **Mid** | `0.3σ < d ≤ 0.7σ` | Moderate jumps — noticeable shift but related. Drives transitions. |
+| **Far-but-directed** | `d > 0.7σ` on all axes **except** `hold_axis`, where `d ≤ 0.3σ` | Large leaps anchored by one constant quality (e.g., same tempo, different mood). Creates contrast/surprise. |
+
+### Directed Jump Algorithm
+
+`select_directed_jump(seed, candidates, hold_axis)`:
+
+1. Compute full distance on all 18 axes
+2. Compute distance on all axes **except** `hold_axis` (zero out that dimension)
+3. Compute distance on `hold_axis` only
+4. Candidate qualifies if: `non_hold_distance > 0.7σ` **AND** `hold_distance ≤ 0.3σ`
+
+Example: `hold_axis="rhythm.bpm"` → playlist jumps far in timbre/mood/key while keeping tempo constant.
+
+### Playlist Generation Flow
+
+```
+seed track
+    │
+    ├─► select_near()  ──► pick 1 ──► next seed
+    │
+    ├─► select_mid()   ──► pick 1 ──► next seed
+    │
+    └─► select_directed_jump(hold_axis="rhythm.bpm") ──► pick 1 ──► next seed
+    │
+    └─► repeat until playlist length reached or candidates exhausted
+```
+
+Fallback: if a band is empty, widen to next band. If all empty, pick globally nearest unvisited track.
+
+### Output
+
+`branch_playlist.json`:
+```json
+{
+  "seed": { "id": 1, "title": "...", "artist": "..." },
+  "playlist": [
+    { "position": 1, "id": 5, "title": "...", "artist": "...", "band": "Near", "distance": 0.12, "reason": "Close timbral neighbour, minimal shift" },
+    { "position": 2, "id": 12, "title": "...", "artist": "...", "band": "Mid", "distance": 0.45, "reason": "Moderate shift in mood, related rhythm" },
+    { "position": 3, "id": 27, "title": "...", "artist": "...", "band": "Far", "distance": 0.89, "reason": "Directed jump: same tempo, far mood/timbre" }
+  ]
+}
+```
+
 ## Features
 
 - **Subprocess integration**: Java-free — calls Essentia CLI and CLAP Python scripts via `subprocess.run()`
