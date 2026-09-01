@@ -108,6 +108,50 @@ make run MUSIC_DIR=/path/to/your/music
 python run.py /path/to/your/music database/playlist.db
 ```
 
+## Input Processing
+
+### Directory Scanning
+
+The pipeline **recursively scans** the supplied music directory — no flat structure required. It walks all subdirectories and finds any file with a supported extension:
+
+```python
+# From src/recommender/ingest_pipeline.py
+AUDIO_EXTENSIONS = {".mp3", ".flac", ".ogg", ".wav"}
+```
+
+**No playlist file is needed** — just point at your music root:
+
+```bash
+python run.py /path/to/music database/playlist.db
+```
+
+This will find:
+```
+/path/to/music/
+├── Artist A/
+│   ├── Album 1/
+│   │   ├── 01 Track.mp3
+│   │   └── 02 Track.flac
+│   └── Album 2/
+│       └── 01 Track.ogg
+└── Artist B/
+    └── Single.wav
+```
+
+All 5 files above would be discovered and processed.
+
+### Re-ingestion Guard
+
+The pipeline is **idempotent** — it tracks processed files by absolute path in SQLite. Re-running on the same directory:
+
+- Skips files already in the database (by `file_path` UNIQUE constraint)
+- Only processes new/changed files
+- Safe to run incrementally as you add music
+
+### Seed Selection
+
+The first track in the generated playlist is the **seed**. Currently the seed is the first track returned by the database query (lowest `id`). Future enhancement: allow specifying a seed track by ID or path.
+
 ## Project Structure
 
 ```
