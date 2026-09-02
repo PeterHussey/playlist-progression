@@ -141,8 +141,14 @@ echo ""
 # ── Stage 2: Python imports ─────────────────────────────────────────
 echo "-- Stage 2: Python imports --"
 
-if command -v python3 &>/dev/null; then
-    import_check=$(python3 -c "
+# Prefer the project venv Python (3.10+) over system python3
+PYTHON_BIN="python3"
+if [ -x "$PROJECT_ROOT/.venv/bin/python" ]; then
+    PYTHON_BIN="$PROJECT_ROOT/.venv/bin/python"
+fi
+
+if command -v "$PYTHON_BIN" &>/dev/null; then
+    import_check=$("$PYTHON_BIN" -c "
 import sys; sys.path.insert(0, '.')
 from src.recommender.track import Track
 from src.recommender.branch_sampler import BranchSampler
@@ -196,8 +202,8 @@ for component in ingest_pipeline.py feature_extractor.py playlist_writer.py; do
 done
 
 # Check tinytag is importable
-if command -v python3 &>/dev/null; then
-    tinytag_check=$(python3 -c "from tinytag import TinyTag" 2>&1)
+if command -v "$PYTHON_BIN" &>/dev/null; then
+    tinytag_check=$("$PYTHON_BIN" -c "from tinytag import TinyTag" 2>&1)
     if [ $? -eq 0 ]; then
         check "tinytag import" "PASS" "TinyTag importable"
     else
@@ -211,8 +217,8 @@ echo "-- Stage 5: Output format --"
 
 OUTPUT_FILE="$PROJECT_ROOT/branch_playlist.json"
 if [ -f "$OUTPUT_FILE" ]; then
-    if command -v python3 &>/dev/null; then
-        json_valid=$(python3 -c "
+    if command -v "$PYTHON_BIN" &>/dev/null; then
+        json_valid=$("$PYTHON_BIN" -c "
 import json, sys
 with open('$OUTPUT_FILE') as f:
     data = json.load(f)
