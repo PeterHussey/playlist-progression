@@ -4,3 +4,6 @@
 
 # Metadata extraction (ID3/Vorbis tags)
 tinytag>=1.10.0
+
+# Mood classification (TensorFlow models)
+tensorflow>=2.10.0
