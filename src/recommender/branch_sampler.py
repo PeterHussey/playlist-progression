@@ -44,7 +44,7 @@ class BranchSampler:
     def compute_distance(self, track_a: Track, track_b: Track) -> float:
         """Compute standardised weighted Euclidean distance between two tracks.
 
-        Formula: sqrt(Σ weight[i] * ((a[i] - mean[i]) / stddev[i] - (b[i] - mean[i]) / stddev[i])²)
+        Formula: sqrt(Σ weight[i] * dz[i]² / n_axes)
 
         Returns:
             distance (≥ 0), or float('inf') if stddevs are not available
@@ -61,9 +61,10 @@ class BranchSampler:
             )
 
         if not self.axis_stddevs:
-            # No standardisation available — fall back to unweighted Euclidean
+            # No standardisation available — fall back to RMS-normalised Euclidean
+            n = len(features_a)
             diff_sq = sum((a - b) ** 2 for a, b in zip(features_a, features_b))
-            return diff_sq ** 0.5
+            return (diff_sq / n) ** 0.5
 
         total = 0.0
         n = min(len(features_a), len(self.axis_stddevs))
@@ -75,7 +76,7 @@ class BranchSampler:
             z_b = (features_b[i] - (self.axis_means[i] if self.axis_means and i < len(self.axis_means) else 0.0)) / std_b
             diff = z_a - z_b
             total += w * diff * diff
-        return total ** 0.5
+        return (total / n) ** 0.5
 
     # ---- Band selection ----
 

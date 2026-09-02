@@ -161,7 +161,7 @@ function computeDistance(trackA, trackB):
         diff = (trackA[i] - mean[i]) / stddev[i] - (trackB[i] - mean[i]) / stddev[i]
         weight = axisWeights[i]  // default 1.0
         sum += weight * diff * diff
-    return sqrt(sum)
+    return sqrt(sum / numAxes)
 ```
 
 Where `mean[i]` and `stddev[i]` are the population mean and standard deviation
