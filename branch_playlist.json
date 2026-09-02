@@ -1,0 +1,90 @@
+{
+  "seed": {
+    "id": 17,
+    "title": "01 Orphan Girl",
+    "artist": ""
+  },
+  "playlist": [
+    {
+      "position": 1,
+      "id": 3,
+      "title": "07 Hey, That's No Way to Say Goodbye",
+      "artist": "",
+      "band": "Near",
+      "distance": 3.3342,
+      "reason": "Near band transition from seed"
+    },
+    {
+      "position": 2,
+      "id": 2,
+      "title": "02 Sovay",
+      "artist": "",
+      "band": "Mid",
+      "distance": 3.6294,
+      "reason": "Mid band transition from seed"
+    },
+    {
+      "position": 3,
+      "id": 9,
+      "title": "Wonderwall",
+      "artist": "",
+      "band": "Far",
+      "distance": 3.5472,
+      "reason": "Far band transition from seed"
+    },
+    {
+      "position": 4,
+      "id": 6,
+      "title": "03 Little Green",
+      "artist": "",
+      "band": "Mid",
+      "distance": 3.1743,
+      "reason": "Mid band transition from seed"
+    },
+    {
+      "position": 5,
+      "id": 12,
+      "title": "18 Hallelujah",
+      "artist": "",
+      "band": "Near",
+      "distance": 2.9509,
+      "reason": "Near band transition from seed"
+    },
+    {
+      "position": 6,
+      "id": 8,
+      "title": "09 Angel From Montgomery",
+      "artist": "",
+      "band": "Near",
+      "distance": 2.7123,
+      "reason": "Near band transition from seed"
+    },
+    {
+      "position": 7,
+      "id": 16,
+      "title": "02 Girl From The North Country",
+      "artist": "",
+      "band": "Mid",
+      "distance": 2.6634,
+      "reason": "Mid band transition from seed"
+    },
+    {
+      "position": 8,
+      "id": 11,
+      "title": "03 Challengers",
+      "artist": "",
+      "band": "Far",
+      "distance": 2.3785,
+      "reason": "Far band transition from seed"
+    },
+    {
+      "position": 9,
+      "id": 10,
+      "title": "06 The Boxer",
+      "artist": "",
+      "band": "Mid",
+      "distance": 3.699,
+      "reason": "Mid band transition from seed"
+    }
+  ]
+}

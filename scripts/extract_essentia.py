@@ -75,12 +75,8 @@ def extract(audio_path: str, output_path: str) -> None:
     ro = rolloff(spec)
     fl = flatness(spec)
 
-    # Key (requires HPCP pitch class profile)
-    spectral_peaks = es.SpectralPeaks()
-    hpcp = es.HPCP()
-    frequencies, magnitudes = spectral_peaks(spec)
-    pcp = hpcp(frequencies, magnitudes)
-    key, scale, key_confidence, _ = es.Key()(pcp)
+    # Key (frame-wise via KeyExtractor)
+    key, scale, key_confidence = es.KeyExtractor()(audio)
 
     # Onset rate
     onset_result = es.OnsetRate()(audio)

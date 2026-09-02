@@ -1,0 +1,67 @@
+============================================================
+PLAYLIST SUMMARY
+============================================================
+Seed: id=17 '01 Orphan Girl'
+Schedule: Near -> Mid -> Far -> Mid -> Near (10 tracks)
+Hold axis: tempo.bpm (BPM)
+
+0. id=17 | SEED  [01 Orphan Girl]
+   Duration: 237.3s | Loudness: -14.8 LUFS (range 4.5)
+   Tempo: 118 BPM (conf 2.27) | Key: Ab major
+   Spectral: centroid=2228 Hz, rolloff=848 Hz, flatness=0.000
+   Rhythm: danceability=1.04, onset_rate=2.8/sec
+
+1. id=3 | Near  [07 Hey, That's No Way to Say Goodbye]
+   Duration: 175.9s | Loudness: -12.3 LUFS (range 5.3)
+   Tempo: 143 BPM (conf 0.92) | Key: Bb major
+   Spectral: centroid=2078 Hz, rolloff=415 Hz, flatness=0.056
+   Rhythm: danceability=1.05, onset_rate=3.2/sec
+
+2. id=2 | Mid  [02 Sovay]
+   Duration: 281.6s | Loudness: -18.8 LUFS (range 7.3)
+   Tempo: 110 BPM (conf 1.06) | Key: C major
+   Spectral: centroid=2167 Hz, rolloff=492 Hz, flatness=0.106
+   Rhythm: danceability=1.09, onset_rate=3.4/sec
+
+3. id=9 | Far  [Wonderwall]
+   Duration: 249.4s | Loudness: -18.4 LUFS (range 9.9)
+   Tempo: 155 BPM (conf 0.23) | Key: G minor
+   Spectral: centroid=1925 Hz, rolloff=554 Hz, flatness=0.143
+   Rhythm: danceability=0.98, onset_rate=2.7/sec
+
+4. id=6 | Mid  [03 Little Green]
+   Duration: 207.5s | Loudness: -21.0 LUFS (range 13.6)
+   Tempo: 112 BPM (conf 0.33) | Key: B major
+   Spectral: centroid=1881 Hz, rolloff=917 Hz, flatness=0.096
+   Rhythm: danceability=0.93, onset_rate=3.2/sec
+
+5. id=12 | Near  [18 Hallelujah]
+   Duration: 245.8s | Loudness: -21.4 LUFS (range 11.9)
+   Tempo: 108 BPM (conf 1.03) | Key: C major
+   Spectral: centroid=2260 Hz, rolloff=1319 Hz, flatness=0.096
+   Rhythm: danceability=0.93, onset_rate=2.6/sec
+
+6. id=8 | Near  [09 Angel From Montgomery]
+   Duration: 241.0s | Loudness: -19.4 LUFS (range 7.4)
+   Tempo: 133 BPM (conf 0.53) | Key: E major
+   Spectral: centroid=2504 Hz, rolloff=1276 Hz, flatness=0.168
+   Rhythm: danceability=0.94, onset_rate=2.9/sec
+
+7. id=16 | Mid  [02 Girl From The North Country]
+   Duration: 202.6s | Loudness: -22.2 LUFS (range 8.4)
+   Tempo: 103 BPM (conf 0.53) | Key: Bb major
+   Spectral: centroid=2956 Hz, rolloff=1130 Hz, flatness=0.153
+   Rhythm: danceability=0.92, onset_rate=3.4/sec
+
+8. id=11 | Far  [03 Challengers]
+   Duration: 211.5s | Loudness: -19.9 LUFS (range 7.6)
+   Tempo: 83 BPM (conf 1.02) | Key: D major
+   Spectral: centroid=2508 Hz, rolloff=897 Hz, flatness=0.100
+   Rhythm: danceability=0.92, onset_rate=3.2/sec
+
+9. id=10 | Mid  [06 The Boxer]
+   Duration: 312.7s | Loudness: -21.8 LUFS (range 12.2)
+   Tempo: 93 BPM (conf 1.71) | Key: B major
+   Spectral: centroid=2196 Hz, rolloff=1314 Hz, flatness=0.080
+   Rhythm: danceability=0.96, onset_rate=3.5/sec
+
