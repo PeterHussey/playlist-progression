@@ -15,7 +15,7 @@ from .feature_extractor import extract_essentia, extract_clap
 
 
 # Supported audio extensions (lowercase)
-AUDIO_EXTENSIONS = {".mp3", ".flac", ".ogg", ".wav"}
+AUDIO_EXTENSIONS = {".mp3", ".flac", ".ogg", ".wav", ".m4a"}
 
 
 def scan_directory(music_dir: Path) -> list[Path]:

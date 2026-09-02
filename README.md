@@ -14,46 +14,39 @@ Ingests local audio files → extracts Essentia DSP features + optional CLAP emb
 
 | Axis Group | Descriptors | Dimensions |
 |------------|-------------|------------|
-| **Timbre** | `lowlevel.spectral_centroid` (mean, std), `lowlevel.spectral_complexity` (mean, std), `lowlevel.spectral_rolloff` (mean, std) | 6 |
-| **Tonal** | `tonal.hkey_scale` (key + scale), `tonal.chord` (chord) | 3 |
-| **Rhythm** | `rhythm.bpm` (tempo), `rhythm.danceability` | 2 |
-| **Mood** | `highlevel.mood_happy`, `mood_sad`, `mood_aggressive`, `mood_relaxed`, `mood_electronic`, `mood_party`, `mood_acoustic` | 7 |
+| **Loudness** | integrated loudness (LUFS), loudness range (LU) | 2 |
+| **Tonal** | key + scale (via HPCP), key confidence | 2 |
+| **Rhythm** | BPM (tempo), beat confidence, danceability, onset rate | 4 |
+| **Spectral** | spectral centroid, spectral rolloff, spectral flatness | 3 |
 
-Total: **18 dimensions** per track, stored as a flat `double[]` in `Track.features` and as JSON in `tracks.feature_json`.
+Total: **11 dimensions** per track, stored as JSON in `tracks.feature_json`.
 
 ### Essentia Descriptor Definitions
 
-| Descriptor | Essentia Name | Range | What It Measures |
-|------------|---------------|-------|------------------|
-| **Spectral Centroid (mean)** | `lowlevel.spectral_centroid.mean` | 0–Nyquist Hz | "Brightness" — centre of mass of the spectrum. Higher = brighter, more high-frequency energy. |
-| **Spectral Centroid (std)** | `lowlevel.spectral_centroid.std` | ≥ 0 | Variability of brightness over time. High = timbral fluctuation (e.g., filter sweeps, evolving textures). |
-| **Spectral Complexity (mean)** | `lowlevel.spectral_complexity.mean` | ≥ 0 | Number of spectral peaks — proxy for harmonic density. High = rich harmonics (piano, strings); low = pure tones (sine, flute). |
-| **Spectral Complexity (std)** | `lowlevel.spectral_complexity.std` | ≥ 0 | Harmonic density variation. High = evolving harmonic content (arpeggios, modulation). |
-| **Spectral Rolloff (mean)** | `lowlevel.spectral_rolloff.mean` | 0–Nyquist Hz | Frequency below which 85% of energy lies. Higher = more high-frequency content (cymbals, noise). |
-| **Spectral Rolloff (std)** | `lowlevel.spectral_rolloff.std` | ≥ 0 | High-frequency energy variation. |
-| **Key + Scale** | `tonal.hkey_scale` | Key: 0–11 (C–B), Scale: 0=major, 1=minor | Estimated musical key and mode. Used for tonal distance (circle-of-fifths aware). |
-| **Chord** | `tonal.chord` | Chord label string | Estimated chord at each frame; aggregated to dominant chord. |
-| **BPM (Tempo)** | `rhythm.bpm` | ~40–200 | Beats per minute. Primary rhythmic anchor for directed jumps. |
-| **Danceability** | `rhythm.danceability` | 0–1 | How suitable for dancing — based on beat strength, regularity, tempo. High = steady 4/4 groove. |
-| **Mood: Happy** | `highlevel.mood_happy` | 0–1 | Positive, upbeat, major-key feel. |
-| **Mood: Sad** | `highlevel.mood_sad` | 0–1 | Melancholic, minor-key, slow tempo feel. |
-| **Mood: Aggressive** | `highlevel.mood_aggressive` | 0–1 | High energy, distortion, fast tempo, heavy rhythm. |
-| **Mood: Relaxed** | `highlevel.mood_relaxed` | 0–1 | Low energy, slow tempo, soft dynamics. |
-| **Mood: Electronic** | `highlevel.mood_electronic` | 0–1 | Synthetic timbres, drum machines, quantised rhythm. |
-| **Mood: Party** | `highlevel.mood_party` | 0–1 | High energy, danceable, celebratory. |
-| **Mood: Acoustic** | `highlevel.mood_acoustic` | 0–1 | Organic timbres, minimal electronic processing. |
+| Descriptor | Output Key | Range | What It Measures |
+|------------|------------|-------|------------------|
+| **Integrated Loudness** | `loudness.integrated` | dB (LUFS) | Overall perceived loudness (EBU R128). |
+| **Loudness Range** | `loudness.range` | dB (LU) | Dynamic range — difference between quiet and loud sections. |
+| **Key + Scale** | `key.scale` | e.g. "A minor" | Estimated musical key and mode via HPCP chroma. |
+| **Key Confidence** | `key.confidence` | 0–1 | Strength of the key estimate. |
+| **BPM (Tempo)** | `tempo.bpm` | ~40–200 | Beats per minute. Primary rhythmic anchor. |
+| **Beat Confidence** | `tempo.confidence` | 0–1 | Reliability of the beat tracking. |
+| **Danceability** | `rhythm.danceability` | 0–2 | How suitable for dancing — beat strength, regularity, tempo. |
+| **Onset Rate** | `rhythm.onset_rate` | onsets/sec | Rate of note onsets — proxy for rhythmic density. |
+| **Spectral Centroid** | `spectral.centroid` | Hz | "Brightness" — centre of mass of the spectrum. Higher = brighter. |
+| **Spectral Rolloff** | `spectral.rolloff` | Hz | Frequency below which 85% of energy lies. |
+| **Spectral Flatness** | `spectral.flatness` | 0–1 | How tone-like (0) vs noise-like (1) the spectrum is. |
 
 **Notes:**
-- All `lowlevel.*` descriptors are computed frame-wise (typically 44100/2048 ≈ 21.5 ms frames) then aggregated to mean/std across the track.
-- `tonal.*` descriptors use the HPCP (Harmonic Pitch Class Profile) chroma representation.
-- `highlevel.mood_*` are classifier outputs from pre-trained models (Essentia's Gaia/MTG-Jamendo models).
-- Mood scores are **not mutually exclusive** — a track can score high on both `mood_happy` and `mood_party`.
+- All spectral descriptors are computed frame-wise then aggregated to a single value per track.
+- Tonal analysis uses `SpectralPeaks` → `HPCP` (Harmonic Pitch Class Profile) → `Key` estimation.
+- Loudness uses EBU R128 (`LoudnessEBUR128`), which requires stereo input (mono is duplicated).
 
 **CLAP (semantic embeddings)** — `scripts/extract_clap.py` runs LAION-CLAP (via `laion-clap` Python package) to produce a 512-dim embedding vector per track. Stored as JSON array in `tracks.clap_embedding`. Optional — pipeline works without it.
 
 ### Distance Computation
 
-`BranchSampler.compute_distance()` uses **standardised weighted Euclidean distance** across the 18 Essentia axes:
+`BranchSampler.compute_distance()` uses **standardised weighted Euclidean distance** across the feature axes:
 
 ```
 distance = sqrt( Σ weight[i] * (z_a[i] - z_b[i])² )
@@ -77,7 +70,7 @@ Given a seed track, candidates are partitioned by standardised distance:
 
 `select_directed_jump(seed, candidates, hold_axis)`:
 
-1. Compute full distance on all 18 axes
+1. Compute full distance on all feature axes
 2. Compute distance on all axes **except** `hold_axis` (zero out that dimension)
 3. Compute distance on `hold_axis` only
 4. Candidate qualifies if: `non_hold_distance > 0.7σ` **AND** `hold_distance ≤ 0.3σ`
@@ -117,7 +110,7 @@ Fallback: if a band is empty, widen to next band. If all empty, pick globally ne
 ## Features
 
 - **Subprocess integration**: Java-free — calls Essentia CLI and CLAP Python scripts via `subprocess.run()`
-- **Full Essentia descriptor set**: timbre (spectral centroid/complexity/rolloff), tonal (key/scale/chord), rhythm (tempo/BPM, danceability), mood (happy/sad/aggressive/relaxed/electronic/party/acoustic)
+- **Essentia DSP features**: loudness (EBU R128), tempo/BPM, key/scale, danceability, spectral centroid/rolloff/flatness
 - **SQLite storage**: `tracks` table with feature JSON and optional CLAP embeddings
 - **Branching recommender**: 3 distance bands — near (≤0.3σ), mid (0.3–0.7σ), far-but-directed (≥0.7σ along specific axis, holding one descriptor constant)
 - **JSON output**: `branch_playlist.json` with seed info, distance band per track, reason string
@@ -144,7 +137,7 @@ The pipeline **recursively scans** the supplied music directory — no flat stru
 
 ```python
 # From src/recommender/ingest_pipeline.py
-AUDIO_EXTENSIONS = {".mp3", ".flac", ".ogg", ".wav"}
+AUDIO_EXTENSIONS = {".mp3", ".flac", ".ogg", ".wav", ".m4a"}
 ```
 
 **No playlist file is needed** — just point at your music root:
@@ -159,7 +152,8 @@ This will find:
 ├── Artist A/
 │   ├── Album 1/
 │   │   ├── 01 Track.mp3
-│   │   └── 02 Track.flac
+│   │   ├── 02 Track.flac
+│   │   └── 03 Track.m4a
 │   └── Album 2/
 │       └── 01 Track.ogg
 └── Artist B/

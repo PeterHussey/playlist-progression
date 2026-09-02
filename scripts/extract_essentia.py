@@ -52,35 +52,39 @@ def extract(audio_path: str, output_path: str) -> None:
 
     duration = len(audio) / 44100.0  # assume 44.1kHz
 
-    # Loudness
-    loudness = es.Loudness()
-    integrated = loudness(audio)
-    loud_range = es.LoudnessRange()(audio)
+    # Loudness (LoudnessEBUR128 requires stereo; duplicate mono channel)
+    import numpy as np
+    stereo = np.column_stack((audio, audio))
+    ebu = es.LoudnessEBUR128()
+    _, _, integrated, loud_range = ebu(stereo)
 
     # Tempo and rhythm
     rhythm_extractor = es.RhythmExtractor2013(method="multifeature")
-    tempo, beats, beats_confidence, _ = rhythm_extractor(audio)
-    danceability = es.Danceability()(audio)
-
-    # Key
-    key_extractor = es.Key()
-    key, scale, key_confidence = key_extractor(audio)
+    tempo, beats, beats_confidence, *_ = rhythm_extractor(audio)
+    danceability_result = es.Danceability()(audio)
+    danceability = danceability_result[0] if isinstance(danceability_result, tuple) else danceability_result
 
     # Spectral descriptors
     spectrum = es.Spectrum()
+    spec = spectrum(audio)
     centroid = es.Centroid(range=22050)
-    bandwidth = es.Bandwidth(range=22050)
-    rolloff = es.Rolloff(spectrum, cutoff=0.85)
+    rolloff = es.RollOff(cutoff=0.85)
     flatness = es.Flatness()
 
-    spec = spectrum(audio)
     c = centroid(spec)
-    bw = bandwidth(spec)
     ro = rolloff(spec)
     fl = flatness(spec)
 
+    # Key (requires HPCP pitch class profile)
+    spectral_peaks = es.SpectralPeaks()
+    hpcp = es.HPCP()
+    frequencies, magnitudes = spectral_peaks(spec)
+    pcp = hpcp(frequencies, magnitudes)
+    key, scale, key_confidence, _ = es.Key()(pcp)
+
     # Onset rate
-    onset_rate = es.OnsetRate()(audio)
+    onset_result = es.OnsetRate()(audio)
+    onset_rate = onset_result[1] if isinstance(onset_result, tuple) else onset_result
 
     # Build output
     result = {
@@ -102,7 +106,6 @@ def extract(audio_path: str, output_path: str) -> None:
         },
         "spectral": {
             "centroid": round(float(c), 2),
-            "bandwidth": round(float(bw), 2),
             "rolloff": round(float(ro), 2),
             "flatness": round(float(fl), 4),
         },
