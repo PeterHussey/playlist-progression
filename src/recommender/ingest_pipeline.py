@@ -10,6 +10,8 @@ import json
 import sqlite3
 from pathlib import Path
 
+from tinytag import TinyTag
+
 from .track import Track
 from .feature_extractor import extract_essentia, extract_clap
 
@@ -37,6 +39,24 @@ def scan_directory(music_dir: Path) -> list[Path]:
 def is_audio_file(path: Path) -> bool:
     """Check if a file has a supported audio extension."""
     return path.suffix.lower() in AUDIO_EXTENSIONS
+
+
+def read_metadata(audio_file: Path) -> tuple[str | None, str | None]:
+    """Read title and artist from ID3/Vorbis tags.
+
+    Args:
+        audio_file: path to the audio file
+
+    Returns:
+        (title, artist) tuple — each may be None if tag is missing
+    """
+    try:
+        tag = TinyTag.get(str(audio_file))
+        title = tag.title if tag.title else None
+        artist = tag.artist if tag.artist else None
+        return title, artist
+    except Exception:
+        return None, None
 
 
 def init_database(db_path: Path) -> sqlite3.Connection:
@@ -97,9 +117,10 @@ def process_file(conn: sqlite3.Connection, audio_file: Path, extract_clap_flag: 
         )
 
     # Insert metadata row
+    title, artist = read_metadata(audio_file)
     conn.execute(
         "INSERT INTO tracks (file_path, title, artist, duration_sec) VALUES (?, ?, ?, ?)",
-        (path_str, None, None, 0.0),
+        (path_str, title, artist, 0.0),
     )
     conn.commit()
     track_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]

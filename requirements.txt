@@ -1,4 +1,6 @@
-# No external dependencies required.
-# All modules used are from the Python standard library:
+# Core dependencies (stdlib only):
 # - sqlite3, subprocess, json, dataclasses, pathlib, argparse
 # - typing (stdlib since Python 3.5+)
+
+# Metadata extraction (ID3/Vorbis tags)
+tinytag>=1.10.0
