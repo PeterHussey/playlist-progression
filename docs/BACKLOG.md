@@ -120,3 +120,49 @@ QA runs 25/25.
   20-dim Essentia axes needs a weighting/normalisation design (raw fusion
   would let CLAP dominate the RMS distance and silently change all band
   behaviour). Parked until a fusion proposal exists; no code change.
+
+## 9. Emerging issues (E2E 2026-09-03) ⬜
+
+Full-pipeline user test on `test-playlist-music` (17 files): fresh ingest →
+idempotent rerun (11 rows skipped, 6 NULL rows auto-refreshed, 1 recovered)
+→ `generate_playlist.py --seed-id 17` (Orphan Girl) → 10-track playlist +
+summary. Frame-wise spectral fix validated live (flatness 0.02–0.10, never
+≈0.000; version 1.1 stored; `duration_sec` populated; real tinytag
+title/artist throughout).
+
+- **30s subprocess timeout too short with mood extraction — ⬜ Open (major).**
+  6/17 tracks failed first pass, 5/17 still failing after retry; one
+  (Little Green) recovered on retry, so the limit is marginal, not
+  deterministic. No file-size correlation. Cause: 7 sequential MusiCNN TF
+  models + cold TF init inside every 30s subprocess. Candidate fixes: raise
+  `TIMEOUT_SECONDS` / make it configurable; long-lived extractor to amortise
+  TF init; partial-success path (keep DSP features, mood 0.0 on timeout).
+  Until fixed, libraries ingest partially (here 12/17) and `--re-extract`
+  inherits the same flakiness.
+- **Fallback picks mislabelled with the scheduled band — ⬜ Open.**
+  E2E entries read `"Near" d=0.64`, `"Mid" d=0.78`, `"Far" d=0.38` — impossible
+  under the 0.3/0.7 thresholds. When a band is empty the generator falls back
+  to global-nearest but keeps the scheduled band label/reason. Fix: label the
+  actual outcome (e.g. record fallback in `reason`). Related: `select_near`
+  / `select_mid` return filter order, not nearest-first, while BRANCHING.md
+  promises "preferring the nearest candidate within that band" — sort matches
+  by distance before picking.
+- **Descriptor ranges in docs are wrong — ⬜ Open (docs).** SCHEMA.md claims
+  danceability 0–1 and confidence 0–1; E2E shows `danceability=1.04`
+  (Essentia's range is 0–3 by design) and `tempo.confidence=2.27`
+  (beats-confidence is unbounded). Harmless for distance (z-scored) but the
+  contract docs mislead. Fix SCHEMA.md/INTEGRATION.md; consider
+  clamping/normalising at extract time.
+- **`clap_embedding` TEXT vs BLOB — ⬜ Open (docs/schema).** Code stores JSON
+  text (`ingest_pipeline.py`, `init_database` TEXT) while `database/init.db`
+  and SCHEMA.md specify BLOB raw bytes. Pick one and align code + docs.
+- **`tests/run_qa.sh` is destructive — ⬜ Open.** Stage 1 does
+  `rm -f database/playlist.db` — running QA wipes the real library DB (not
+  run during this E2E for exactly that reason). Point QA at a temp DB.
+- **Rerun log wording — ⬜ Open (minor).** Skipped rows print `processed:` —
+  indistinguishable from real extractions. Log `skipped:` / `re-extracted:`
+  distinctly.
+- **No single ingest→playlist command; seed-by-id friction — ⬜ Open
+  (usability).** E2E needed three manual steps plus a sqlite lookup to find
+  Orphan Girl's id. Consider a Makefile target and `--seed-title` substring
+  match.
