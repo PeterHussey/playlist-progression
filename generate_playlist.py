@@ -105,6 +105,8 @@ def main(argv=None):
         band = schedule[step % len(schedule)]
         candidates = [t for t, _ in tracks if t.id not in visited]
         selected = None
+        # Band lists are nearest-first (BRANCHING.md), so [0] is the
+        # nearest candidate within the band.
         if band == "Near":
             near_list = sampler.select_near(current, candidates)
             selected = near_list[0] if near_list else None
@@ -114,7 +116,9 @@ def main(argv=None):
         elif band == "Far":
             far_list = sampler.select_directed_jump(current, candidates, args.hold_axis)
             selected = far_list[0] if far_list else None
+        fell_back = False
         if selected is None:
+            fell_back = True
             best = None; best_dist = float("inf")
             for cand in candidates:
                 d = sampler.compute_distance(current, cand)
@@ -122,14 +126,24 @@ def main(argv=None):
             selected = best
         if selected is None: break
         d = sampler.compute_distance(current, selected)
+        if fell_back:
+            near_thr = sampler.band_thresholds["near"]
+            mid_thr = sampler.band_thresholds["mid"]
+            actual_band = "Near" if d <= near_thr else ("Mid" if d <= mid_thr else "Far")
+            band_label = actual_band
+            reason = (f"Fallback: scheduled {band} empty, "
+                      f"global-nearest (actual {actual_band}) from seed")
+        else:
+            band_label = band
+            reason = f"{band} band transition from seed"
         playlist_entries.append(make_entry(
             position=step+1, track_id=selected.id,
             title=selected.get_title(), artist=selected.get_artist(),
-            band=band, distance=round(d, 4),
-            reason=f"{band} band transition from seed"))
+            band=band_label, distance=round(d, 4),
+            reason=reason))
         visited.add(selected.id)
         current = selected
-        print(f"  {band}: id={selected.id} '{selected.get_title() or 'Unknown'}' distance={d:.3f}")
+        print(f"  {band_label}: id={selected.id} '{selected.get_title() or 'Unknown'}' distance={d:.3f}")
     write_playlist(args.output, seed, playlist_entries)
     selected_ids = [seed.id] + [e["track_id"] for e in playlist_entries]
     selected_data = [item for item in tracks if item[0].id in selected_ids]

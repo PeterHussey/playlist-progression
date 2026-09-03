@@ -102,7 +102,7 @@ seed track
     └─► repeat until playlist length reached or candidates exhausted
 ```
 
-Fallback: if a band is empty, widen to next band. If all empty, pick globally nearest unvisited track.
+Fallback: if a band is empty, pick the globally nearest unvisited track, label it with its actual band (by distance thresholds), and record the fallback in `reason` (e.g. `"Fallback: scheduled Near empty, global-nearest (actual Mid) from seed"`). Band matches are sorted nearest-first, so the nearest candidate within a band is always picked.
 
 ### Output
 

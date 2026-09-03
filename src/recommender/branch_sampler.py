@@ -166,6 +166,8 @@ class BranchSampler:
             if non_hold_dist > far_threshold and hold_dist <= hold_near_threshold:
                 results.append(candidate)
 
+        # Prefer the nearest candidate within the band (BRANCHING.md).
+        results.sort(key=lambda t: self.compute_distance(seed, t))
         return results
 
     # ---- Internal helpers ----
@@ -182,16 +184,19 @@ class BranchSampler:
             high: upper threshold (inclusive)
 
         Returns:
-            tracks whose distance from seed is in (low, high]
+            tracks whose distance from seed is in (low, high],
+            sorted nearest-first (BRANCHING.md: "preferring the nearest
+            candidate within that band")
         """
-        results: list[Track] = []
+        scored: list[tuple[float, Track]] = []
         for candidate in candidates:
             if candidate.features is None:
                 continue
             dist = self.compute_distance(seed, candidate)
             if dist > low and dist <= high:
-                results.append(candidate)
-        return results
+                scored.append((dist, candidate))
+        scored.sort(key=lambda pair: pair[0])
+        return [t for _, t in scored]
 
     @staticmethod
     def _single_axis_distance(val_a: float, val_b: float, axis_idx: int, weight: float = 1.0) -> float:
@@ -224,12 +229,14 @@ class BranchSampler:
         mid = self.select_mid(seed, candidates)
 
         # "Far" in this helper sense = distance > mid threshold on all axes
-        far: list[Track] = []
+        scored_far: list[tuple[float, Track]] = []
         for candidate in candidates:
             if candidate.features is None:
                 continue
             d = self.compute_distance(seed, candidate)
             if d > self.band_thresholds["mid"]:
-                far.append(candidate)
+                scored_far.append((d, candidate))
+        scored_far.sort(key=lambda pair: pair[0])
+        far = [t for _, t in scored_far]
 
         return {"near": near, "mid": mid, "far": far}

@@ -143,14 +143,17 @@ title/artist throughout).
   `docs/superpowers/specs/2026-09-03-timeout-design.md`; plan:
   `docs/superpowers/plans/2026-09-03-timeout-fix.md`. Manual 17-track
   full-mood verification still to be run on real audio.
-- **Fallback picks mislabelled with the scheduled band — ⬜ Open.**
+- **Fallback picks mislabelled with the scheduled band — ✅ Done (2026-09-04).**
   E2E entries read `"Near" d=0.64`, `"Mid" d=0.78`, `"Far" d=0.38` — impossible
-  under the 0.3/0.7 thresholds. When a band is empty the generator falls back
-  to global-nearest but keeps the scheduled band label/reason. Fix: label the
-  actual outcome (e.g. record fallback in `reason`). Related: `select_near`
-  / `select_mid` return filter order, not nearest-first, while BRANCHING.md
-  promises "preferring the nearest candidate within that band" — sort matches
-  by distance before picking.
+  under the 0.3/0.7 thresholds. When a band was empty the generator fell back
+  to global-nearest but kept the scheduled band label/reason. Fixed:
+  `generate_playlist.py` labels the actual band (by distance thresholds) and
+  records the fallback in `reason` (`"Fallback: scheduled Near empty,
+  global-nearest (actual Mid) from seed"`); `branch_sampler.py`
+  (`_filter_by_band`, `select_directed_jump`, `select_near_mid_far` far
+  branch) sorts matches nearest-first per BRANCHING.md ("preferring the
+  nearest candidate within that band"). Covered by
+  `tests/test_branch_fallback.py` (3/3); full suite 62 passed, 1 deselected.
 - **Descriptor ranges in docs are wrong — ⬜ Open (docs).** SCHEMA.md claims
   danceability 0–1 and confidence 0–1; E2E shows `danceability=1.04`
   (Essentia's range is 0–3 by design) and `tempo.confidence=2.27`
