@@ -1,6 +1,6 @@
 # QA Report — Playlist Progression Prototype
 
-> **Run date:** 2026-09-03T17:25:43Z
+> **Run date:** 2026-09-03T20:37:57Z
 > **Script:** tests/run_qa.sh
 
 ## Project Structure

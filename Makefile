@@ -7,7 +7,7 @@
 
 # ── Configuration ──────────────────────────────────────────────
 
-DB_FILE = database/playlist.db
+DB_FILE ?= database/playlist.db
 DB_INIT = database/init.db
 
 # Default music directory (override with: make run MUSIC_DIR=/path/to/music)

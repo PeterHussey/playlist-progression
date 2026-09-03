@@ -1,6 +1,6 @@
 # Evidence — End-to-End QA (Python Pipeline)
 
-**Run date:** 2026-09-03T17:25:43Z
+**Run date:** 2026-09-03T20:37:57Z
 **QA script:** tests/run_qa.sh
 
 ## Counts
@@ -34,8 +34,8 @@
 | PASS | extract_clap.py | Found |
 | PASS | Makefile | Found |
 | PASS | Documentation | 9 docs found |
-| PASS | make init-db | Database initialized |
-| PASS | DB file exists | /Users/my188/Documents/GitHub/playlist-progression/database/playlist.db present |
+| PASS | make init-db | Database initialized (temp: /Users/my188/Documents/GitHub/playlist-progression/database/qa_temp_playlist.db) |
+| PASS | DB file exists | /Users/my188/Documents/GitHub/playlist-progression/database/qa_temp_playlist.db present |
 | PASS | tracks table | Table exists |
 | PASS | SQLite row count | 0 rows (expected) |
 | PASS | Schema columns | file_path, title, artist columns present |

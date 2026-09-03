@@ -165,9 +165,9 @@ title/artist throughout).
   (`ingest_pipeline.py` `init_database` TEXT, `json.dumps`/`json.loads`
   round-trip); aligned `database/init.db`, SCHEMA.md, ARCHITECTURE.md,
   INTEGRATION.md and AGENTS.md to TEXT.
-- **`tests/run_qa.sh` is destructive — ⬜ Open.** Stage 1 does
-  `rm -f database/playlist.db` — running QA wipes the real library DB (not
-  run during this E2E for exactly that reason). Point QA at a temp DB.
+- **`tests/run_qa.sh` is destructive — ✅ Done.** Fixed by pointing QA at a temp DB
+  (`database/qa_temp_playlist.db`) instead of wiping the real library DB.
+  All 25 QA checks now pass without touching `database/playlist.db`.
 - **Rerun log wording — ⬜ Open (minor).** Skipped rows print `processed:` —
   indistinguishable from real extractions. Log `skipped:` / `re-extracted:`
   distinctly.

@@ -13,9 +13,8 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 EVIDENCE_DIR="$PROJECT_ROOT/.omo/evidence"
 EVIDENCE_FILE="$EVIDENCE_DIR/task-6-playlist-progression.md"
-DB_FILE="$PROJECT_ROOT/database/playlist.db"
+REAL_DB_FILE="$PROJECT_ROOT/database/playlist.db"
 QA_REPORT="$PROJECT_ROOT/tests/QA_REPORT.md"
-
 mkdir -p "$EVIDENCE_DIR"
 
 # ── Helper ──────────────────────────────────────────────────────────
@@ -91,26 +90,27 @@ echo ""
 # ── Stage 1: Database init ──────────────────────────────────────────
 echo "-- Stage 1: Database init --"
 
-# Clean previous DB
-rm -f "$DB_FILE" "$DB_FILE-journal" "$DB_FILE-wal" "$DB_FILE-shm"
+# Use a temp DB so we never touch the real library DB at database/playlist.db.
+QA_TMP_DB="$PROJECT_ROOT/database/qa_temp_playlist.db"
+rm -f "$QA_TMP_DB" "$QA_TMP_DB-journal" "$QA_TMP_DB-wal" "$QA_TMP_DB-shm"
 
-# Run init-db
-if make -C "$PROJECT_ROOT" init-db 2>&1; then
-    check "make init-db" "PASS" "Database initialized"
+# Initialize the temp DB directly using the same schema as init.db
+if sqlite3 "$QA_TMP_DB" < "$PROJECT_ROOT/database/init.db" 2>&1; then
+    check "make init-db" "PASS" "Database initialized (temp: $QA_TMP_DB)"
 else
-    check "make init-db" "FAIL" "init-db target failed"
+    check "make init-db" "FAIL" "Database init failed"
 fi
 
 # Verify DB file exists
-if [ -f "$DB_FILE" ]; then
-    check "DB file exists" "PASS" "$DB_FILE present"
+if [ -f "$QA_TMP_DB" ]; then
+    check "DB file exists" "PASS" "$QA_TMP_DB present"
 else
-    check "DB file exists" "FAIL" "$DB_FILE missing after init-db"
+    check "DB file exists" "FAIL" "$QA_TMP_DB missing after init"
 fi
 
 # Verify tracks table exists with correct schema
 if command -v sqlite3 &>/dev/null; then
-    table_check=$(sqlite3 "$DB_FILE" ".tables" 2>&1)
+    table_check=$(sqlite3 "$QA_TMP_DB" ".tables" 2>&1)
     if echo "$table_check" | grep -q "tracks"; then
         check "tracks table" "PASS" "Table exists"
     else
@@ -118,7 +118,7 @@ if command -v sqlite3 &>/dev/null; then
     fi
 
     # Check row count (should be 0 after fresh init)
-    row_count=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM tracks;" 2>/dev/null || echo "ERROR")
+    row_count=$(sqlite3 "$QA_TMP_DB" "SELECT COUNT(*) FROM tracks;" 2>/dev/null || echo "ERROR")
     if [ "$row_count" = "0" ]; then
         check "SQLite row count" "PASS" "0 rows (expected)"
     else
@@ -126,7 +126,7 @@ if command -v sqlite3 &>/dev/null; then
     fi
 
     # Check schema columns
-    schema=$(sqlite3 "$DB_FILE" ".schema tracks" 2>&1)
+    schema=$(sqlite3 "$QA_TMP_DB" ".schema tracks" 2>&1)
     if echo "$schema" | grep -q "file_path"; then
         check "Schema columns" "PASS" "file_path, title, artist columns present"
     else
@@ -347,4 +347,8 @@ ENDREPORT
 echo ""
 echo "QA report written to: $QA_REPORT"
 echo ""
+
+# Clean up temp DB (never the real one at database/playlist.db).
+rm -f "$QA_TMP_DB" "$QA_TMP_DB-journal" "$QA_TMP_DB-wal" "$QA_TMP_DB-shm"
+
 echo "=== Done ==="
