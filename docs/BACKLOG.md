@@ -76,15 +76,19 @@ C–F# = 12 steps; enharmonics normalised; unknown → (0, 0)).
 adjacency, enharmonics, scale-string fallback, and unknown-key origin.
 SCHEMA.md and README updated.
 
-## 6. Spectral descriptors frame-wise ⬜
+## 6. Spectral descriptors frame-wise ✅
 
 `scripts/extract_essentia.py:69` `es.Spectrum()(audio)` is the same full-track
 FFT flaw as the key bug — centroid/rolloff/flatness from one global spectrum
 instead of frame-wise mean/std. Same class of fix as #1 of the key work.
 
-**Status:** ⬜ Open. Diagnostics still show over-aggregated spectral values
-(e.g. flatness≈0.000, danceability>1.0, tempo.confidence>1.0), consistent with
-full-track FFT artifacts. Needs the frame-wise fix.
+**Status:** ✅ Done (commit `382725d`, 2026-09-03). Fixed via new
+`compute_spectral_descriptors()` — `FrameGenerator(2048/1024)` → `Windowing`
+→ `Spectrum` per frame, with `Centroid`/`RollOff`/`Flatness` means aggregated
+via numpy. JSON keys unchanged (backward-compatible with `feature_converter.py`,
+20 axes). TDD regression test `tests/test_spectral_framewise.py` (frame-wise
+pipeline + no-full-track-Spectrum source guard). Verified: new tests 2/2;
+full suite 12 passed, 1 deselected (network).
 
 ## 7. QA suite modernization ✅
 
