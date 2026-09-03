@@ -6,3 +6,13 @@ __pycache__/
 *.db-journal
 *.db-wal
 *.db-shm
+
+# Downloaded Essentia mood classification models (fetched on first use)
+/models/
+# Essentia feature sidecars
+essentia_*.json
+clap_*.json
+branch_playlist.json
+playlist_summary.txt
+# Local real-audio test fixtures (not committed)
+/test-playlist-music/
