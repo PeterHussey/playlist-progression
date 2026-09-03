@@ -141,6 +141,45 @@ def timeout_for(phase: str, explicit: int | None = None) -> int:
     raise ValueError(f"Unknown phase: {phase}")
 
 
+def run_batch(manifest_path: Path, summary_path: Path, timeout: int | None = None) -> dict:
+    """Run extract_essentia.py --batch on a manifest of audio files.
+
+    The batch worker loads TF graphs once and reuses them across tracks,
+    amortising the ~5 s init cost.
+
+    Args:
+        manifest_path: path to manifest JSON (list of {audio_path, output_path})
+        summary_path: path where summary JSON will be written
+        timeout: overall subprocess timeout in seconds (None uses default)
+
+    Returns:
+        Summary dict: {"ok": [str], "failed": [{"output": str, "error": str}]}
+
+    Raises:
+        RuntimeError: if the batch subprocess itself fails or times out
+    """
+    script = Path(__file__).parent.parent.parent / "scripts" / "extract_essentia.py"
+    eff = resolve_timeout(timeout, "EXTRACT_TIMEOUT_SEC", DEFAULT_TIMEOUT_SEC)
+    cmd = [sys.executable, str(script), "--batch", str(manifest_path)]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=eff)
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f"Batch worker timed out after {eff}s") from e
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Batch worker failed (rc={result.returncode})"
+            + (f"\nstderr: {result.stderr}" if result.stderr else "")
+        )
+
+    summary_file = Path(str(summary_path))
+    if not summary_file.exists():
+        raise RuntimeError(f"Batch worker did not produce summary at {summary_file}")
+
+    return json.loads(summary_file.read_text())
+
+
 def ensure_mood_models(models_dir: Path | None = None, timeout: int | None = None) -> None:
     """Prefetch mood classification models via extract_essentia.py --prefetch.
 

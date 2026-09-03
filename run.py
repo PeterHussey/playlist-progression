@@ -69,6 +69,11 @@ def main() -> None:
         action="store_true",
         help="Skip mood extraction (DSP only)",
     )
+    parser.add_argument(
+        "--batch",
+        action="store_true",
+        help="Use batch worker (single TF graph load for all tracks)",
+    )
     args = parser.parse_args()
 
     music_dir = Path(args.music_dir)
@@ -86,6 +91,7 @@ def main() -> None:
         dsp_timeout=args.dsp_timeout,
         mood_timeout=args.mood_timeout,
         no_mood=args.no_mood,
+        batch=args.batch,
     )
     print(f"\nIngestion complete: {len(tracks)} tracks processed")
 

@@ -319,6 +319,30 @@ def extract_mood_only(audio_path: str, output_path: str, models_dir: Path = Path
         json.dump(existing, f, indent=2)
 
 
+def run_batch_manifest(manifest_path: str) -> dict:
+    """Process a manifest of audio files, reusing loaded TF graphs.
+
+    Args:
+        manifest_path: path to manifest JSON (list of {audio_path, output_path})
+
+    Returns:
+        Summary dict: {"ok": [str], "failed": [{"output": str, "error": str}]}
+    """
+    manifest = json.loads(Path(manifest_path).read_text())
+    ok, failed = [], []
+    for entry in manifest:
+        try:
+            extract(entry["audio_path"], entry["output_path"], include_mood=True)
+            ok.append(entry["output_path"])
+        except Exception as e:
+            failed.append({"output": entry["output_path"], "error": str(e)})
+            print(f"batch failed {entry['audio_path']}: {e}", file=sys.stderr)
+    summary = {"ok": ok, "failed": failed}
+    summary_path = Path(str(manifest_path) + ".summary.json")
+    summary_path.write_text(json.dumps(summary, indent=2))
+    return summary
+
+
 def main():
     import argparse
 
@@ -329,7 +353,12 @@ def main():
     p.add_argument("--models-dir", default="models", help="Directory to store downloaded models")
     p.add_argument("--no-mood", action="store_true", help="Skip mood extraction (DSP only)")
     p.add_argument("--mood-only", action="store_true", help="Run only mood extraction on existing sidecar")
+    p.add_argument("--batch", metavar="MANIFEST", help="Process a batch manifest of audio files")
     args = p.parse_args()
+
+    if args.batch:
+        run_batch_manifest(args.batch)
+        return
 
     if args.prefetch:
         download_mood_models(
@@ -340,7 +369,7 @@ def main():
 
     if not args.audio_path or not args.output_path:
         print(
-            f"Usage: {sys.argv[0]} <audio_path> <output_path> [--prefetch] [--no-mood] [--mood-only] [--models-dir DIR]",
+            f"Usage: {sys.argv[0]} <audio_path> <output_path> [--prefetch] [--no-mood] [--mood-only] [--models-dir DIR] [--batch MANIFEST]",
             file=sys.stderr,
         )
         sys.exit(2)

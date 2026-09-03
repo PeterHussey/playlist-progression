@@ -271,7 +271,7 @@ def process_file(
     return track
 
 
-def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, force: bool = False, timeout: int | None = None, dsp_timeout: int | None = None, mood_timeout: int | None = None, no_mood: bool = False) -> list[Track]:
+def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, force: bool = False, timeout: int | None = None, dsp_timeout: int | None = None, mood_timeout: int | None = None, no_mood: bool = False, batch: bool = False) -> list[Track]:
     """Run the full ingestion pipeline.
 
     Args:
@@ -283,6 +283,7 @@ def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, for
         dsp_timeout: DSP-only timeout override (None uses 60)
         mood_timeout: mood-only timeout override (None uses 180)
         no_mood: if True, skip mood extraction entirely
+        batch: if True, use batch worker (single TF graph load)
 
     Returns:
         list of Track objects that were processed
@@ -296,6 +297,9 @@ def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, for
 
     conn = init_database(db_path)
     try:
+        if batch:
+            return _run_pipeline_batch(conn, audio_files, db_path, extract_clap=extract_clap, force=force, timeout=timeout, dsp_timeout=dsp_timeout, mood_timeout=mood_timeout, no_mood=no_mood)
+
         tracks: list[Track] = []
         for audio_file in audio_files:
             try:
@@ -308,3 +312,153 @@ def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, for
         return tracks
     finally:
         conn.close()
+
+
+def _run_pipeline_batch(
+    conn: sqlite3.Connection,
+    audio_files: list[Path],
+    db_path: Path,
+    extract_clap: bool = False,
+    force: bool = False,
+    timeout: int | None = None,
+    dsp_timeout: int | None = None,
+    mood_timeout: int | None = None,
+    no_mood: bool = False,
+) -> list[Track]:
+    """Batch path: write manifest, run batch worker once, store results.
+
+    Falls back to single-track extraction per-file on batch failure.
+    """
+    import tempfile
+    from .feature_extractor import run_batch, extract_essentia, timeout_for
+
+    # Filter to files needing extraction
+    pending: list[Path] = []
+    existing_tracks: list[Track] = []
+    for audio_file in audio_files:
+        path_str = str(audio_file)
+        row = conn.execute(
+            "SELECT * FROM tracks WHERE file_path = ?", (path_str,)
+        ).fetchone()
+        if row is not None and not force:
+            stored = _stored_version(row[5])
+            current = _current_extractor_version()
+            stale = row[5] is None or (current is not None and stored != current)
+            if not stale:
+                existing_tracks.append(Track(
+                    id=row[0],
+                    file_path=audio_file,
+                    title=row[2],
+                    artist=row[3],
+                    duration_sec=row[4] if row[4] is not None else 0.0,
+                    features=convert(row[5]) if row[5] else None,
+                    feature_json=row[5] if row[5] is not None else None,
+                    clap_embedding=None if row[6] is None else json.loads(row[6]),
+                ))
+                continue
+        pending.append(audio_file)
+
+    if not pending:
+        return existing_tracks
+
+    # Write manifest
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        manifest_entries = []
+        for af in pending:
+            manifest_entries.append({
+                "audio_path": str(af),
+                "output_path": str(Path(f.name).parent / f"batch_{af.stem}.json"),
+            })
+        json.dump(manifest_entries, f)
+        manifest_path = Path(f.name)
+
+    summary_path = Path(str(manifest_path) + ".summary.json")
+
+    tracks: list[Track] = list(existing_tracks)
+    try:
+        summary = run_batch(manifest_path, summary_path, timeout=timeout)
+    except Exception as e:
+        print(f"  batch worker failed: {e} — falling back to single-track")
+        summary = {"ok": [], "failed": []}
+        # On batch failure, fall back to single-track for each pending file
+        for af in pending:
+            manifest_entry = next(
+                (m for m in manifest_entries if m["audio_path"] == str(af)), None
+            )
+            if manifest_entry:
+                summary["failed"].append({
+                    "output": manifest_entry["output_path"],
+                    "error": str(e),
+                })
+    finally:
+        # Clean up manifest
+        manifest_path.unlink(missing_ok=True)
+        summary_path.unlink(missing_ok=True)
+
+    # Process ok entries — read sidecars and store
+    ok_set = set(summary.get("ok", []))
+
+    for entry in manifest_entries:
+        audio_file = Path(entry["audio_path"])
+        output_file = Path(entry["output_path"])
+
+        if entry["output_path"] in ok_set and output_file.exists():
+            # Read sidecar and store to DB
+            try:
+                sidecar = json.loads(output_file.read_text())
+                output_file.unlink(missing_ok=True)
+            except Exception as e:
+                print(f"  failed reading sidecar for {audio_file.name}: {e}")
+                output_file.unlink(missing_ok=True)
+                continue
+
+            path_str = str(audio_file)
+            row = conn.execute(
+                "SELECT * FROM tracks WHERE file_path = ?", (path_str,)
+            ).fetchone()
+
+            title, artist = read_metadata(audio_file)
+            duration = float(sidecar.get("duration_sec", 0.0) or 0.0)
+
+            if row is not None:
+                conn.execute(
+                    "UPDATE tracks SET feature_json = ?, duration_sec = ?, title = ?, artist = ? WHERE id = ?",
+                    (json.dumps(sidecar), duration, title, artist, row[0]),
+                )
+                track_id = row[0]
+            else:
+                conn.execute(
+                    "INSERT INTO tracks (file_path, title, artist, duration_sec, feature_json) VALUES (?, ?, ?, ?, ?)",
+                    (path_str, title, artist, duration, json.dumps(sidecar)),
+                )
+                track_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+            track = Track(id=track_id, file_path=audio_file, title=title, artist=artist, duration_sec=duration, features=convert(json.dumps(sidecar)), feature_json=json.dumps(sidecar))
+            tracks.append(track)
+            print(f"  batch processed: {audio_file.name} (id={track_id})")
+
+            # Optionally run CLAP
+            if extract_clap:
+                try:
+                    clap_output = Path(f"clap_{track_id}.json")
+                    extract_clap(audio_file, clap_output)
+                    clap_data = json.loads(clap_output.read_text())
+                    conn.execute(
+                        "UPDATE tracks SET clap_embedding = ? WHERE id = ?",
+                        (json.dumps(clap_data.get("embedding", [])), track_id),
+                    )
+                    track.set_clap_embedding(clap_data.get("embedding"))
+                finally:
+                    clap_output.unlink(missing_ok=True)
+        else:
+            # Failed entry — fall back to single-track
+            output_file.unlink(missing_ok=True)
+            try:
+                track = process_file(conn, audio_file, extract_clap_flag=extract_clap, force=force, timeout=timeout, dsp_timeout=dsp_timeout, mood_timeout=mood_timeout, no_mood=no_mood)
+                tracks.append(track)
+                print(f"  fallback single-track: {audio_file.name} (id={track.get_id()})")
+            except Exception as e2:
+                print(f"  failed: {audio_file.name} — {e2}")
+
+    conn.commit()
+    return tracks
