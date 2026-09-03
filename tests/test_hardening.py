@@ -91,7 +91,7 @@ def test_process_file_reextracts_stale_version(tmp_path, monkeypatch):
     )
     from unittest.mock import patch
 
-    def fake_extract(audio_path, output_path):
+    def fake_extract(audio_path, output_path, **kwargs):
         Path(output_path).write_text(
             json.dumps(_sidecar("1.1", duration=222.0)))
 
@@ -120,7 +120,7 @@ def test_process_file_force_reextracts_current(tmp_path, monkeypatch):
     )
     from unittest.mock import patch
 
-    def fake_extract(audio_path, output_path):
+    def fake_extract(audio_path, output_path, **kwargs):
         Path(output_path).write_text(
             json.dumps(_sidecar(EXTRACTOR_VERSION, duration=333.0)))
 

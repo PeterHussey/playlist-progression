@@ -117,6 +117,7 @@ def _run_extraction(
     audio_file: Path,
     track: Track,
     extract_clap_flag: bool = False,
+    timeout: int | None = None,
 ) -> None:
     """Run Essentia (+optional CLAP) extraction and UPDATE the track row.
 
@@ -134,7 +135,7 @@ def _run_extraction(
     # Run Essentia extraction
     essentia_output = Path(f"essentia_{track_id}.json")
     try:
-        extract_essentia(audio_file, essentia_output)
+        extract_essentia(audio_file, essentia_output, timeout=timeout)
         feature_json = json.loads(essentia_output.read_text())
         duration = float(feature_json.get("duration_sec", 0.0) or 0.0)
         conn.execute(
@@ -171,6 +172,7 @@ def process_file(
     audio_file: Path,
     extract_clap_flag: bool = False,
     force: bool = False,
+    timeout: int | None = None,
 ) -> Track:
     """Process a single audio file: insert metadata, run extraction, store features.
 
@@ -217,7 +219,7 @@ def process_file(
             feature_json=row[5] if row[5] is not None else None,
             clap_embedding=None if row[6] is None else json.loads(row[6]),
         )
-        _run_extraction(conn, row[0], audio_file, track, extract_clap_flag=extract_clap_flag)
+        _run_extraction(conn, row[0], audio_file, track, extract_clap_flag=extract_clap_flag, timeout=timeout)
         return track
 
     # Insert metadata row
@@ -231,11 +233,11 @@ def process_file(
 
     track = Track(id=track_id, file_path=audio_file)
 
-    _run_extraction(conn, track_id, audio_file, track, extract_clap_flag=extract_clap_flag)
+    _run_extraction(conn, track_id, audio_file, track, extract_clap_flag=extract_clap_flag, timeout=timeout)
     return track
 
 
-def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, force: bool = False) -> list[Track]:
+def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, force: bool = False, timeout: int | None = None) -> list[Track]:
     """Run the full ingestion pipeline.
 
     Args:
@@ -243,6 +245,7 @@ def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, for
         db_path: path to the SQLite database file
         extract_clap: whether to run CLAP embedding extraction
         force: re-extract tracks even when a current-version row exists
+        timeout: per-file subprocess timeout in seconds (None uses default 180)
 
     Returns:
         list of Track objects that were processed
@@ -259,7 +262,7 @@ def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, for
         tracks: list[Track] = []
         for audio_file in audio_files:
             try:
-                track = process_file(conn, audio_file, extract_clap_flag=extract_clap, force=force)
+                track = process_file(conn, audio_file, extract_clap_flag=extract_clap, force=force, timeout=timeout)
                 tracks.append(track)
                 print(f"  processed: {audio_file.name} (id={track.get_id()})")
             except Exception as e:

@@ -46,6 +46,12 @@ def main() -> None:
         help="Re-extract features even for tracks already in the database "
         "(rows with a stale extractor version are refreshed automatically)",
     )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=None,
+        help="Per-file subprocess timeout in seconds (default 180, env EXTRACT_TIMEOUT_SEC)",
+    )
     args = parser.parse_args()
 
     music_dir = Path(args.music_dir)
@@ -55,7 +61,7 @@ def main() -> None:
         print(f"Error: Not a directory: {music_dir}", file=sys.stderr)
         sys.exit(1)
 
-    tracks = run_pipeline(music_dir, db_path, extract_clap=args.clap, force=args.re_extract)
+    tracks = run_pipeline(music_dir, db_path, extract_clap=args.clap, force=args.re_extract, timeout=args.timeout)
     print(f"\nIngestion complete: {len(tracks)} tracks processed")
 
 

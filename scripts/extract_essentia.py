@@ -266,17 +266,30 @@ def extract(audio_path: str, output_path: str) -> None:
 
 
 def main():
-    if len(sys.argv) != 3:
+    import argparse
+
+    p = argparse.ArgumentParser()
+    p.add_argument("audio_path", nargs="?")
+    p.add_argument("output_path", nargs="?")
+    p.add_argument("--prefetch", action="store_true", help="Download mood classification models")
+    p.add_argument("--models-dir", default="models", help="Directory to store downloaded models")
+    args = p.parse_args()
+
+    if args.prefetch:
+        download_mood_models(
+            ["happy", "sad", "aggressive", "relaxed", "electronic", "party", "acoustic"],
+            Path(args.models_dir),
+        )
+        return
+
+    if not args.audio_path or not args.output_path:
         print(
-            f"Usage: {sys.argv[0]} <audio_path> <output_path>",
+            f"Usage: {sys.argv[0]} <audio_path> <output_path> [--prefetch]",
             file=sys.stderr,
         )
         sys.exit(2)
 
-    audio_path = sys.argv[1]
-    output_path = sys.argv[2]
-
-    extract(audio_path, output_path)
+    extract(args.audio_path, args.output_path)
 
 
 if __name__ == "__main__":
