@@ -79,17 +79,33 @@ public class FeatureExtractor {
 
 ### Invocation Sequence
 
-For each ingested track, the orchestrator calls extraction in order:
+For each ingested track, the orchestrator calls extraction in a two-phase order:
 
 ```
-1. python3 extract_essentia.py <audio_path> <essentia_output.json>   [always]
-2. python3 extract_clap.py   <audio_path> <clap_output.json>         [if enabled]
+Phase 1 (DSP — always runs):
+  python3 extract_essentia.py <audio_path> <essentia_output.json> --no-mood
+
+Phase 2 (Mood — unless --no-mood):
+  python3 extract_essentia.py <audio_path> <essentia_output.json> --mood-only
+
+CLAP (if enabled):
+  python3 extract_clap.py     <audio_path> <clap_output.json>
 ```
 
-Essentia runs first because it is fast and provides the baseline similarity
-features. CLAP runs second only when the configuration flag `clap.enabled` is
-`true`. If CLAP is disabled, the `clap_embedding` column in the database stays
-`NULL` and the similarity engine uses Essentia features alone.
+The two-phase split lets DSP features complete fast (60 s default) while mood
+retrieval runs on a longer timeout (180 s default).  Mood failure is non-fatal:
+the mood key is omitted from the sidecar (`NULL`) and retried on the next run
+via `--mood-only`.
+
+**Batch variant** (`--batch MANIFEST`):
+
+```
+python3 extract_essentia.py --batch <manifest.json> [--no-mood] [--models-dir DIR]
+```
+
+The batch worker loads TF graphs once, processes all tracks, and writes a
+summary JSON with `ok`/`failed` per entry.  Manifest entries use unique
+output paths (`batch_NNNN_stem.json`) to avoid collisions across directories.
 
 ---
 

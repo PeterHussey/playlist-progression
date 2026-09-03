@@ -13,7 +13,7 @@ from pathlib import Path
 from tinytag import TinyTag
 
 from .track import Track
-from .feature_extractor import extract_essentia, extract_clap
+from .feature_extractor import extract_essentia, extract_clap, run_batch, ensure_mood_models
 from .feature_converter import convert
 
 
@@ -215,6 +215,10 @@ def process_file(
         audio_file: path to the audio file
         extract_clap_flag: whether to also run CLAP embedding extraction
         force: re-extract even when a current-version row already exists
+        timeout: per-file subprocess timeout in seconds (None uses default 180)
+        dsp_timeout: DSP-only timeout override (None uses 60)
+        mood_timeout: mood-only timeout override (None uses 180)
+        no_mood: if True, skip mood extraction entirely
 
     Rows whose stored extractor version differs from the current
     EXTRACTOR_VERSION are re-extracted automatically (stale features).
@@ -271,7 +275,7 @@ def process_file(
     return track
 
 
-def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, force: bool = False, timeout: int | None = None, dsp_timeout: int | None = None, mood_timeout: int | None = None, no_mood: bool = False, batch: bool = False) -> list[Track]:
+def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, force: bool = False, timeout: int | None = None, dsp_timeout: int | None = None, mood_timeout: int | None = None, no_mood: bool = False, batch: bool = False, models_dir: Path | None = None) -> list[Track]:
     """Run the full ingestion pipeline.
 
     Args:
@@ -284,6 +288,7 @@ def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, for
         mood_timeout: mood-only timeout override (None uses 180)
         no_mood: if True, skip mood extraction entirely
         batch: if True, use batch worker (single TF graph load)
+        models_dir: directory for mood classification models (passed to batch worker)
 
     Returns:
         list of Track objects that were processed
@@ -292,13 +297,20 @@ def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, for
     if not music_dir.is_dir():
         raise ValueError(f"Not a directory: {music_dir}")
 
+    # Best-effort prefetch of mood models (warn but don't fail)
+    if not no_mood:
+        try:
+            ensure_mood_models(models_dir=models_dir)
+        except Exception as e:
+            print(f"Warning: mood model prefetch failed (will retry per-track): {e}")
+
     audio_files = scan_directory(music_dir)
     print(f"Found {len(audio_files)} audio files")
 
     conn = init_database(db_path)
     try:
         if batch:
-            return _run_pipeline_batch(conn, audio_files, db_path, extract_clap=extract_clap, force=force, timeout=timeout, dsp_timeout=dsp_timeout, mood_timeout=mood_timeout, no_mood=no_mood)
+            return _run_pipeline_batch(conn, audio_files, db_path, extract_clap=extract_clap, force=force, timeout=timeout, dsp_timeout=dsp_timeout, mood_timeout=mood_timeout, no_mood=no_mood, models_dir=models_dir)
 
         tracks: list[Track] = []
         for audio_file in audio_files:
@@ -324,13 +336,14 @@ def _run_pipeline_batch(
     dsp_timeout: int | None = None,
     mood_timeout: int | None = None,
     no_mood: bool = False,
+    models_dir: Path | None = None,
 ) -> list[Track]:
     """Batch path: write manifest, run batch worker once, store results.
 
     Falls back to single-track extraction per-file on batch failure.
     """
     import tempfile
-    from .feature_extractor import run_batch, extract_essentia, timeout_for
+    from .feature_extractor import extract_essentia, timeout_for
 
     # Filter to files needing extraction
     pending: list[Path] = []
@@ -364,10 +377,10 @@ def _run_pipeline_batch(
     # Write manifest
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         manifest_entries = []
-        for af in pending:
+        for i, af in enumerate(pending):
             manifest_entries.append({
                 "audio_path": str(af),
-                "output_path": str(Path(f.name).parent / f"batch_{af.stem}.json"),
+                "output_path": str(Path(f.name).parent / f"batch_{i:04d}_{af.stem}.json"),
             })
         json.dump(manifest_entries, f)
         manifest_path = Path(f.name)
@@ -376,7 +389,7 @@ def _run_pipeline_batch(
 
     tracks: list[Track] = list(existing_tracks)
     try:
-        summary = run_batch(manifest_path, summary_path, timeout=timeout)
+        summary = run_batch(manifest_path, summary_path, timeout=timeout, no_mood=no_mood, models_dir=models_dir)
     except Exception as e:
         print(f"  batch worker failed: {e} — falling back to single-track")
         summary = {"ok": [], "failed": []}

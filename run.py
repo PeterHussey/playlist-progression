@@ -21,6 +21,14 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from src.recommender.ingest_pipeline import run_pipeline
 
 
+def _positive_int(value: str) -> int:
+    """argparse type function: reject non-positive integers."""
+    ivalue = int(value)
+    if ivalue <= 0:
+        raise argparse.ArgumentTypeError(f"must be a positive integer, got {value}")
+    return ivalue
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Playlist-progression: ingest music, extract features, generate branch playlists."
@@ -48,19 +56,19 @@ def main() -> None:
     )
     parser.add_argument(
         "--timeout",
-        type=int,
+        type=_positive_int,
         default=None,
         help="Per-file subprocess timeout in seconds (default 180, env EXTRACT_TIMEOUT_SEC)",
     )
     parser.add_argument(
         "--dsp-timeout",
-        type=int,
+        type=_positive_int,
         default=None,
         help="DSP extraction timeout in seconds (default 60, env EXTRACT_DSP_TIMEOUT_SEC)",
     )
     parser.add_argument(
         "--mood-timeout",
-        type=int,
+        type=_positive_int,
         default=None,
         help="Mood extraction timeout in seconds (default 180, env EXTRACT_MOOD_TIMEOUT_SEC)",
     )
@@ -73,6 +81,12 @@ def main() -> None:
         "--batch",
         action="store_true",
         help="Use batch worker (single TF graph load for all tracks)",
+    )
+    parser.add_argument(
+        "--models-dir",
+        type=str,
+        default=None,
+        help="Directory for mood classification models (passed to batch worker)",
     )
     args = parser.parse_args()
 
@@ -92,6 +106,7 @@ def main() -> None:
         mood_timeout=args.mood_timeout,
         no_mood=args.no_mood,
         batch=args.batch,
+        models_dir=Path(args.models_dir) if args.models_dir else None,
     )
     print(f"\nIngestion complete: {len(tracks)} tracks processed")
 

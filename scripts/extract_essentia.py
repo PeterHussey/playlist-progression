@@ -319,7 +319,7 @@ def extract_mood_only(audio_path: str, output_path: str, models_dir: Path = Path
         json.dump(existing, f, indent=2)
 
 
-def run_batch_manifest(manifest_path: str, models_dir: Path = Path("models")) -> dict:
+def run_batch_manifest(manifest_path: str, models_dir: Path = Path("models"), no_mood: bool = False) -> dict:
     """Process a manifest of audio files, reusing loaded TF graphs.
 
     Loads mood TF predictors ONCE before the loop, reuses across tracks.
@@ -329,6 +329,7 @@ def run_batch_manifest(manifest_path: str, models_dir: Path = Path("models")) ->
     Args:
         manifest_path: path to manifest JSON (list of {audio_path, output_path})
         models_dir: directory containing mood classification models
+        no_mood: if True, skip mood extraction (DSP only)
 
     Returns:
         Summary dict: {"ok": [str], "failed": [{"output": str, "error": str}]}
@@ -347,30 +348,31 @@ def run_batch_manifest(manifest_path: str, models_dir: Path = Path("models")) ->
     mood_predictors: dict[str, object] = {}  # mood_name → TensorflowPredictMusiCNN
     mood_meta: dict[str, int] = {}           # mood_name → target column index
 
-    try:
-        download_mood_models(moods, models_dir)
-        for mood in moods:
-            model_path = models_dir / f"mood_{mood}-musicnn-msd-1.pb"
-            if not model_path.exists():
-                print(f"Warning: Mood model not found for {mood}", file=sys.stderr)
-                continue
-            # Determine target column from metadata
-            target_idx = 0
-            try:
-                meta_path = models_dir / f"mood_{mood}-musicnn-msd-1.json"
-                meta = json.loads(meta_path.read_text())
-                classes = meta.get("classes") or []
-                target_idx = next((i for i, c in enumerate(classes) if c.lower() == mood.lower()), 0)
-            except Exception:
-                pass
-            from essentia.standard import TensorflowPredictMusiCNN
-            mood_predictors[mood] = TensorflowPredictMusiCNN(graphFilename=str(model_path))
-            mood_meta[mood] = target_idx
-    except Exception as e:
-        print(f"Warning: Failed to pre-load mood models: {e}", file=sys.stderr)
-        mood_predictors = {}
+    if not no_mood:
+        try:
+            download_mood_models(moods, models_dir)
+            for mood in moods:
+                model_path = models_dir / f"mood_{mood}-musicnn-msd-1.pb"
+                if not model_path.exists():
+                    print(f"Warning: Mood model not found for {mood}", file=sys.stderr)
+                    continue
+                # Determine target column from metadata
+                target_idx = 0
+                try:
+                    meta_path = models_dir / f"mood_{mood}-musicnn-msd-1.json"
+                    meta = json.loads(meta_path.read_text())
+                    classes = meta.get("classes") or []
+                    target_idx = next((i for i, c in enumerate(classes) if c.lower() == mood.lower()), 0)
+                except Exception:
+                    pass
+                from essentia.standard import TensorflowPredictMusiCNN
+                mood_predictors[mood] = TensorflowPredictMusiCNN(graphFilename=str(model_path))
+                mood_meta[mood] = target_idx
+        except Exception as e:
+            print(f"Warning: Failed to pre-load mood models: {e}", file=sys.stderr)
+            mood_predictors = {}
 
-    resampler = es.Resample(inputSampleRate=44100, outputSampleRate=16000)
+    resampler = es.Resample(inputSampleRate=44100, outputSampleRate=16000) if not no_mood else None
 
     ok, failed = [], []
     for entry in manifest:
@@ -433,7 +435,7 @@ def main():
     args = p.parse_args()
 
     if args.batch:
-        run_batch_manifest(args.batch)
+        run_batch_manifest(args.batch, no_mood=args.no_mood)
         return
 
     if args.prefetch:
