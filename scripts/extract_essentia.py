@@ -128,6 +128,48 @@ def extract_mood(audio, models_dir: Path = Path("models")) -> dict[str, float]:
     return scores
 
 
+def compute_spectral_descriptors(audio) -> tuple[float, float, float]:
+    """Frame-wise spectral means (centroid, rolloff, flatness).
+
+    Correct Essentia usage is FrameGenerator -> Windowing -> Spectrum per
+    frame, aggregating descriptor means. Calling Spectrum() on the full
+    track buffer is a full-track FFT flaw (same class as the key bug fixed
+    via KeyExtractor in ba7c8d3): it yields one global spectrum with
+    exaggerated dynamic range (flatness≈0) instead of representative means.
+    """
+    import essentia.standard as es
+
+    frame_gen = es.FrameGenerator(
+        audio, frameSize=2048, hopSize=1024, startFromZero=True
+    )
+    window = es.Windowing(type="hann")
+    spectrum = es.Spectrum()
+    centroid_algo = es.Centroid(range=22050)
+    rolloff_algo = es.RollOff(cutoff=0.85)
+    flatness_algo = es.Flatness()
+
+    centroids: list[float] = []
+    rolloffs: list[float] = []
+    flatnesses: list[float] = []
+
+    for frame in frame_gen:
+        spec = spectrum(window(frame))
+        centroids.append(float(centroid_algo(spec)))
+        rolloffs.append(float(rolloff_algo(spec)))
+        flatnesses.append(float(flatness_algo(spec)))
+
+    if not centroids:
+        return (0.0, 0.0, 0.0)
+
+    import numpy as np
+
+    return (
+        float(np.mean(centroids)),
+        float(np.mean(rolloffs)),
+        float(np.mean(flatnesses)),
+    )
+
+
 def extract(audio_path: str, output_path: str) -> None:
     """Run Essentia extraction and write JSON sidecar."""
     try:
@@ -163,16 +205,8 @@ def extract(audio_path: str, output_path: str) -> None:
     danceability_result = es.Danceability()(audio)
     danceability = danceability_result[0] if isinstance(danceability_result, tuple) else danceability_result
 
-    # Spectral descriptors
-    spectrum = es.Spectrum()
-    spec = spectrum(audio)
-    centroid = es.Centroid(range=22050)
-    rolloff = es.RollOff(cutoff=0.85)
-    flatness = es.Flatness()
-
-    c = centroid(spec)
-    ro = rolloff(spec)
-    fl = flatness(spec)
+    # Spectral descriptors (frame-wise means — not full-track FFT)
+    c, ro, fl = compute_spectral_descriptors(audio)
 
     # Key (frame-wise via KeyExtractor)
     key, scale, key_confidence = es.KeyExtractor()(audio)
