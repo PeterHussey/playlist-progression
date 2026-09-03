@@ -7,43 +7,9 @@ sys.path.insert(0, '.')
 from src.recommender.track import Track
 from src.recommender.branch_sampler import BranchSampler
 from src.recommender.playlist_writer import write_playlist, make_entry
+from src.recommender.feature_converter import AXIS_NAMES, convert
 DB = Path("database/playlist.db")
-AXIS_NAMES = [
-    "duration_sec", "loudness.integrated", "loudness.range",
-    "tempo.bpm", "tempo.confidence", "key.confidence",
-    "spectral.centroid", "spectral.rolloff", "spectral.flatness",
-    "rhythm.danceability", "rhythm.onset_rate",
-    "mood.happy", "mood.sad", "mood.aggressive", "mood.relaxed",
-    "mood.electronic", "mood.party", "mood.acoustic",
-]
-def extract_features(row):
-    raw = json.loads(row["feature_json"] or "{}")
-    vec = []
-    vec.append(float(raw.get("duration_sec", 0)))
-    loud = raw.get("loudness", {})
-    vec.append(float(loud.get("integrated", 0)))
-    vec.append(float(loud.get("range", 0)))
-    tempo = raw.get("tempo", {})
-    vec.append(float(tempo.get("bpm", 0)))
-    vec.append(float(tempo.get("confidence", 0)))
-    key = raw.get("key", {})
-    vec.append(float(key.get("confidence", 0)))
-    spec = raw.get("spectral", {})
-    vec.append(float(spec.get("centroid", 0)))
-    vec.append(float(spec.get("rolloff", 0)))
-    vec.append(float(spec.get("flatness", 0)))
-    rhythm = raw.get("rhythm", {})
-    vec.append(float(rhythm.get("danceability", 0)))
-    vec.append(float(rhythm.get("onset_rate", 0)))
-    mood = raw.get("mood", {})
-    vec.append(float(mood.get("happy", 0)))
-    vec.append(float(mood.get("sad", 0)))
-    vec.append(float(mood.get("aggressive", 0)))
-    vec.append(float(mood.get("relaxed", 0)))
-    vec.append(float(mood.get("electronic", 0)))
-    vec.append(float(mood.get("party", 0)))
-    vec.append(float(mood.get("acoustic", 0)))
-    return vec, raw
+
 def main():
     conn = sqlite3.connect(str(DB))
     conn.row_factory = sqlite3.Row
@@ -55,7 +21,8 @@ def main():
                   title=row["title"], artist=row["artist"],
                   duration_sec=row["duration_sec"] or 0.0,
                   feature_json=row["feature_json"])
-        vec, raw = extract_features(row)
+        vec = convert(row["feature_json"])
+        raw = json.loads(row["feature_json"] or "{}")
         t.set_features(vec)
         tracks.append((t, raw))
         feature_vectors.append(vec)

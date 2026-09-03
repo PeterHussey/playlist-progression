@@ -14,6 +14,7 @@ from tinytag import TinyTag
 
 from .track import Track
 from .feature_extractor import extract_essentia, extract_clap
+from .feature_converter import convert
 
 
 # Supported audio extensions (lowercase)
@@ -111,7 +112,7 @@ def process_file(conn: sqlite3.Connection, audio_file: Path, extract_clap_flag: 
             title=row[2],
             artist=row[3],
             duration_sec=row[4] if row[4] is not None else 0.0,
-            features=None,
+            features=convert(row[5]) if row[5] else None,
             feature_json=row[5] if row[5] is not None else None,
             clap_embedding=None if row[6] is None else json.loads(row[6]),
         )
@@ -137,6 +138,7 @@ def process_file(conn: sqlite3.Connection, audio_file: Path, extract_clap_flag: 
             (json.dumps(feature_json), track_id),
         )
         track.feature_json = json.dumps(feature_json)
+        track.features = convert(track.feature_json)
     finally:
         if essentia_output.exists():
             essentia_output.unlink()
