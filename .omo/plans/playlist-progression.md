@@ -75,7 +75,7 @@ Your next move: approve or run a high-accuracy review, then `$start-work playlis
   Commit: Y | docs(ARCHITECTURE): add architecture design document
 
 - [ ] 2. Define SQLite schema and descriptor selection (`docs/SCHEMA.md`)
-  What to do / Must NOT do: Specify `tracks` table columns (id INTEGER PRIMARY KEY, file_path TEXT UNIQUE, title TEXT, artist TEXT, duration_sec REAL, feature_json TEXT, created_at TIMESTAMP); `clap_embedding` optional BLOB column. List exact Essentia descriptors: `lowlevel.timbre` (mean/std of spectral centroid, spectral complexity, spectral rolloff), `lowlevel.tonal` (hkey_scale, chord), `rhythm.tempo` (BPM), `rhythm.danceability`, `highlevel.mood` (happy, sad, aggressive, relaxed, electronic, party, acoustic). Must NOT include MiMo-Audio descriptors.
+  What to do / Must NOT do: Specify `tracks` table columns (id INTEGER PRIMARY KEY, file_path TEXT UNIQUE, title TEXT, artist TEXT, duration_sec REAL, feature_json TEXT, created_at TIMESTAMP); `clap_embedding` optional TEXT column (JSON array of 512 floats). List exact Essentia descriptors: `lowlevel.timbre` (mean/std of spectral centroid, spectral complexity, spectral rolloff), `lowlevel.tonal` (hkey_scale, chord), `rhythm.tempo` (BPM), `rhythm.danceability`, `highlevel.mood` (happy, sad, aggressive, relaxed, electronic, party, acoustic). Must NOT include MiMo-Audio descriptors.
   Parallelization: Wave 1 | Blocked by: 1 | Blocks: 5
   References: User handoff (Essentia descriptor list); workspace empty; `essentia` CLI docs (general knowledge)
   Acceptance criteria: `docs/SCHEMA.md` exists with exact SQL `CREATE TABLE` statements and descriptor list with axis explanations; file contains at least 200 words.
