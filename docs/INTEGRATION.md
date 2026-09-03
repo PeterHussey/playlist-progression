@@ -279,7 +279,7 @@ behaviour:
     "model_path": "/path/to/clap-model.pt"
   },
   "extraction": {
-    "timeout_sec": 30,
+    "timeout_sec": 180,
     "python_bin": "python3"
   }
 }
@@ -289,7 +289,7 @@ behaviour:
 |---|---|---|
 | `clap.enabled` | `false` | When `false`, `extract_clap.py` is never called and the CLAP BLOB column stays `NULL`. |
 | `clap.model_path` | (required if enabled) | Local filesystem path to the CLAP model weights. |
-| `extraction.timeout_sec` | `30` | Per-file subprocess timeout in seconds. |
+| `extraction.timeout_sec` | `180` | Per-file subprocess timeout in seconds. (Overridden by `--timeout` flag or `EXTRACT_TIMEOUT_SEC` env var.) |
 | `extraction.python_bin` | `"python3"` | Path to the Python interpreter. Allows override for virtual environments. |
 
 ---
