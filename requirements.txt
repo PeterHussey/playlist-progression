@@ -2,8 +2,13 @@
 # - sqlite3, subprocess, json, dataclasses, pathlib, argparse
 # - typing (stdlib since Python 3.5+)
 
+# Essentia with TensorFlow support (provides the `essentia` module with
+# TensorflowPredict* algorithms for mood classification). Install plain
+# `essentia` instead only if you don't need mood features.
+essentia-tensorflow>=2.1b6.dev1389
+
 # Metadata extraction (ID3/Vorbis tags)
 tinytag>=1.10.0
 
-# Mood classification (TensorFlow models)
+# TensorFlow runtime (required by essentia-tensorflow for model inference)
 tensorflow>=2.10.0
