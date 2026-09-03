@@ -18,8 +18,9 @@ Ingests local audio files → extracts Essentia DSP features + optional CLAP emb
 | **Tonal** | key + scale (via HPCP), key confidence | 2 |
 | **Rhythm** | BPM (tempo), beat confidence, danceability, onset rate | 4 |
 | **Spectral** | spectral centroid, spectral rolloff, spectral flatness | 3 |
+| **Mood** | happy, sad, aggressive, relaxed, electronic, party, acoustic | 7 |
 
-Total: **11 dimensions** per track, stored as JSON in `tracks.feature_json`.
+Total: **18 dimensions** per track, stored as JSON in `tracks.feature_json`.
 
 ### Essentia Descriptor Definitions
 
@@ -36,11 +37,19 @@ Total: **11 dimensions** per track, stored as JSON in `tracks.feature_json`.
 | **Spectral Centroid** | `spectral.centroid` | Hz | "Brightness" — centre of mass of the spectrum. Higher = brighter. |
 | **Spectral Rolloff** | `spectral.rolloff` | Hz | Frequency below which 85% of energy lies. |
 | **Spectral Flatness** | `spectral.flatness` | 0–1 | How tone-like (0) vs noise-like (1) the spectrum is. |
+| **Mood: Happy** | `mood.happy` | 0–1 | Upbeat, major-key, optimistic confidence score. |
+| **Mood: Sad** | `mood.sad` | 0–1 | Melancholy, minor-key, emotionally heavy confidence score. |
+| **Mood: Aggressive** | `mood.aggressive` | 0–1 | Loud, fast, distorted intensity confidence score. |
+| **Mood: Relaxed** | `mood.relaxed` | 0–1 | Gentle, slow, low-energy calm confidence score. |
+| **Mood: Electronic** | `mood.electronic` | 0–1 | Synthesised, produced, electronic confidence score. |
+| **Mood: Party** | `mood.party` | 0–1 | High-energy, social, danceable celebration score. |
+| **Mood: Acoustic** | `mood.acoustic` | 0–1 | Naturally recorded, unplugged, instrumental organic score. |
 
 **Notes:**
 - All spectral descriptors are computed frame-wise then aggregated to a single value per track.
 - Tonal analysis uses `SpectralPeaks` → `HPCP` (Harmonic Pitch Class Profile) → `Key` estimation.
 - Loudness uses EBU R128 (`LoudnessEBUR128`), which requires stereo input (mono is duplicated).
+- **Mood descriptors** come from pre-trained Essentia MusiCNN TensorFlow classifiers (one binary model per mood). Each model's activation column is selected from its `classes` metadata and averaged over time frames. Models download automatically to `models/` on first use and require `essentia-tensorflow` + TensorFlow. If a model is missing or predictions fail, mood scores fall back to 0.0 rather than aborting the pipeline. The 7 mood axes participate in the playlist distance computation.
 
 **CLAP (semantic embeddings)** — `scripts/extract_clap.py` runs LAION-CLAP (via `laion-clap` Python package) to produce a 512-dim embedding vector per track. Stored as JSON array in `tracks.clap_embedding`. Optional — pipeline works without it.
 
@@ -111,6 +120,7 @@ Fallback: if a band is empty, widen to next band. If all empty, pick globally ne
 
 - **Subprocess integration**: Java-free — calls Essentia CLI and CLAP Python scripts via `subprocess.run()`
 - **Essentia DSP features**: loudness (EBU R128), tempo/BPM, key/scale, danceability, spectral centroid/rolloff/flatness
+- **Mood descriptors**: 7 mood scores (happy, sad, aggressive, relaxed, electronic, party, acoustic) via pre-trained Essentia MusiCNN TensorFlow classifiers, included in similarity distance
 - **SQLite storage**: `tracks` table with feature JSON and optional CLAP embeddings
 - **Branching recommender**: 3 distance bands — near (≤0.3σ), mid (0.3–0.7σ), far-but-directed (≥0.7σ along specific axis, holding one descriptor constant)
 - **JSON output**: `branch_playlist.json` with seed info, distance band per track, reason string
@@ -118,10 +128,11 @@ Fallback: if a band is empty, widen to next band. If all empty, pick globally ne
 ## Quick Start
 
 ```bash
-# 1. Create venv and install Essentia
+# 1. Create venv and install Essentia (incl. TensorFlow build for mood)
 python -m venv .venv
 source .venv/bin/activate
-pip install essentia
+pip install essentia-tensorflow  # include for mood extraction (Essentia + TensorFlow)
+# or plain: pip install essentia  (mood extraction will be unavailable, scores default to 0.0)
 
 # 2. Run the pipeline
 make run MUSIC_DIR=/path/to/your/music
