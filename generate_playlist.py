@@ -73,7 +73,9 @@ def main():
     axis_index = {name: i for i, name in enumerate(AXIS_NAMES)}
     sampler = BranchSampler(axis_weights=[1.0]*n_axes, axis_index=axis_index,
                             axis_stddevs=stddevs, axis_means=means)
-    seed = next(t for t, _ in tracks if t.id == 17)
+    seed = next((t for t, _ in tracks if t.id == 17), None)
+    if seed is None:
+        seed = max(tracks, key=lambda item: item[0].id)[0]
     visited = {seed.id}
     current = seed
     playlist_entries = []
