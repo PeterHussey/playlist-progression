@@ -78,6 +78,35 @@ def main() -> None:
         help="Skip mood extraction (DSP only)",
     )
     parser.add_argument(
+        "--generate-playlist",
+        action="store_true",
+        help="After ingestion, generate a branch playlist (requires a seed track)",
+    )
+    parser.add_argument(
+        "--seed-title",
+        type=str,
+        default=None,
+        help="Substring to match in track title for seed selection",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=9,
+        help="Number of playlist entries after the seed (default: 9)",
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="Playlist JSON output path (default: branch_playlist.json)",
+    )
+    parser.add_argument(
+        "--hold-axis",
+        type=str,
+        default="tempo.bpm",
+        help="Hold axis for directed jumps (default: tempo.bpm)",
+    )
+    parser.add_argument(
         "--batch",
         action="store_true",
         help="Use batch worker (single TF graph load for all tracks)",
@@ -111,6 +140,26 @@ def main() -> None:
     # Unpack tuples (Track, status) from run_pipeline's return value
     processed_tracks = [track for track, _ in tracks]
     print(f"\nIngestion complete: {len(processed_tracks)} tracks processed")
+
+    # Generate playlist if requested
+    if args.generate_playlist:
+        print("Generating playlist...")
+        music_dir = str(music_dir)
+        db_path = str(db_path)
+        try:
+            from generate_playlist import main as generate_playlist_main
+            sys.argv = [
+                "generate_playlist.py",
+                "--db", db_path,
+                "--seed-title", args.seed_title,
+                "--limit", str(args.limit),
+                "--output", args.output or "branch_playlist.json",
+                "--hold-axis", args.hold_axis,
+            ]
+            generate_playlist_main()
+        except Exception as e:
+            print(f"Error generating playlist: {e}", file=sys.stderr)
+            sys.exit(1)
 
 
 if __name__ == "__main__":

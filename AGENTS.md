@@ -26,6 +26,9 @@ make init-db
 
 # Clean temp files
 make clean
+
+# Generate a branch playlist (ingest + playlist in one step)
+make playlist SEED="substring"
 ```
 
 ---

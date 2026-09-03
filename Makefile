@@ -28,7 +28,12 @@ init-db:
 ## Run the ingestion pipeline
 run: init-db
 	@echo "==> Running ingestion pipeline..."
-	python run.py $(MUSIC_DIR) $(DB_FILE)
+	python3 run.py $(MUSIC_DIR) $(DB_FILE)
+
+## Run ingestion + generate playlist (SEED="substring" for seed title match)
+playlist: init-db
+	@echo "==> Running ingestion + playlist generation..."
+	python3 run.py $(MUSIC_DIR) $(DB_FILE) --generate-playlist --seed-title "$(SEED)"
 
 ## Remove temp files
 clean:

@@ -131,15 +131,15 @@ Fallback: if a band is empty, pick the globally nearest unvisited track, label i
 
 ```bash
 # 1. Create venv and install Essentia (incl. TensorFlow build for mood)
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install essentia-tensorflow  # include for mood extraction (Essentia + TensorFlow)
-# or plain: pip install essentia  (mood extraction will be unavailable, scores default to 0.0)
+# or plain: pip install essentia  (mood extraction will be unavailable)
 
 # 2. Run the pipeline
 make run MUSIC_DIR=/path/to/your/music
 # or directly:
-python run.py /path/to/your/music database/playlist.db
+python3 run.py /path/to/your/music database/playlist.db
 # useful flags:
 #   --clap              also extract CLAP embeddings (requires laion-clap)
 #   --re-extract        re-extract tracks already in the database
@@ -150,6 +150,16 @@ python run.py /path/to/your/music database/playlist.db
 #   --batch             batch mode: one worker loads the 7 TF mood models once
 #                       for the whole library instead of once per track
 #   --models-dir DIR    where mood models live (default models/)
+
+# 3. Generate a playlist (single step: ingest + playlist)
+make playlist SEED="Orphan Girl"
+# or directly:
+python3 run.py /path/to/music database/playlist.db --generate-playlist --seed-title "Orphan Girl"
+# playlist flags:
+#   --seed-title STR    substring to match in track title (case-insensitive)
+#   --limit N           playlist entries after seed (default 9)
+#   --output PATH       output JSON path (default: branch_playlist.json)
+#   --hold-axis AXIS    hold axis for directed jumps (default: tempo.bpm)
 ```
 
 Extraction runs in two phases per track (DSP first, then mood); a mood
@@ -200,7 +210,7 @@ The pipeline is **idempotent** — it tracks processed files by absolute path in
 
 ### Seed Selection
 
-The first track in the generated playlist is the **seed**. Pick it with `generate_playlist.py --db <db> --seed-id <id>` (plus `--limit`, `--hold-axis`, `--output`, `--summary`); defaults reproduce the legacy behaviour (seed id 17 if present else highest id, 9 entries, hold `tempo.bpm`).
+The first track in the generated playlist is the **seed**. Pick it with `generate_playlist.py --db <db> --seed-title <title>` (or `--seed-id <id>`). Additional flags: `--limit`, `--hold-axis`, `--output`, `--summary`. If multiple tracks match the title substring, the script exits with a list of matching IDs for disambiguation.
 
 ## Project Structure
 

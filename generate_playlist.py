@@ -28,8 +28,11 @@ def parse_args(argv=None) -> argparse.Namespace:
     )
     parser.add_argument("--db", type=Path, default=DEFAULT_DB,
                         help=f"SQLite database file (default: {DEFAULT_DB})")
-    parser.add_argument("--seed-id", type=int, default=None,
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--seed-id", type=int, default=None,
                         help="Seed track id (default: legacy id 17, else highest id)")
+    group.add_argument("--seed-title", type=str, default=None,
+                        help="Substring to match in track title (case-insensitive; picks first match)")
     parser.add_argument("--limit", type=int, default=9,
                         help="Number of playlist entries after the seed (default: 9)")
     parser.add_argument("--hold-axis", default="tempo.bpm",
@@ -93,6 +96,18 @@ def main(argv=None):
                   f"(known ids: {known[0]}..{known[-1]}, {len(known)} tracks)",
                   file=sys.stderr)
             sys.exit(1)
+    elif args.seed_title is not None:
+        # Find tracks with titles containing the seed title substring (case-insensitive)
+        matching = [t for t, _ in tracks if args.seed_title.lower() in t.title.lower()]
+        if not matching:
+            print(f"No tracks found with '{args.seed_title}' in title",
+                  file=sys.stderr)
+            sys.exit(1)
+        if len(matching) > 1:
+            print(f"Multiple tracks match '{args.seed_title}': {', '.join(str(t.id) for t in matching)}",
+                  file=sys.stderr)
+            sys.exit(1)
+        seed = matching[0]
     else:
         seed = next((t for t, _ in tracks if t.id == 17), None)
         if seed is None:
