@@ -168,9 +168,7 @@ title/artist throughout).
 - **`tests/run_qa.sh` is destructive — ✅ Done.** Fixed by pointing QA at a temp DB
   (`database/qa_temp_playlist.db`) instead of wiping the real library DB.
   All 25 QA checks now pass without touching `database/playlist.db`.
-- **Rerun log wording — ⬜ Open (minor).** Skipped rows print `processed:` —
-  indistinguishable from real extractions. Log `skipped:` / `re-extracted:`
-  distinctly.
+- **Rerun log wording — ✅ Done (2026-09-03).** Added status indicators: `skipped:` (existing, not stale), `re-extracted:` (stale/force), `processed:` (new). Updated `process_file()` → `tuple[Track, str]` return, `run_pipeline()` → `list[tuple[Track, str]]`, updated tests and `run.py` accordingly.
 - **No single ingest→playlist command; seed-by-id friction — ⬜ Open
   (usability).** E2E needed three manual steps plus a sqlite lookup to find
   Orphan Girl's id. Consider a Makefile target and `--seed-title` substring
