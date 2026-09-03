@@ -23,10 +23,43 @@ Output format (see INTEGRATION.md):
 """
 
 import json
+import os
+import urllib.request
+from pathlib import Path
 import sys
 
 # Essentia imports are deferred to runtime so import errors appear on stderr
 # rather than crashing at module load time.
+
+
+def download_mood_models(moods: list[str], models_dir: Path) -> None:
+    """Download mood classification models from Essentia servers.
+
+    Args:
+        moods: List of mood names to download (e.g., ["happy", "sad"])
+        models_dir: Directory to store downloaded models
+
+    Raises:
+        RuntimeError: If download fails for any model
+    """
+    models_dir.mkdir(parents=True, exist_ok=True)
+
+    base_url = "https://essentia.upf.edu/models/classifiers"
+
+    for mood in moods:
+        model_file = f"mood_{mood}-musicnn-msd-1.pb"
+        model_path = models_dir / model_file
+
+        if model_path.exists():
+            continue
+
+        url = f"{base_url}/mood_{mood}/{model_file}"
+
+        try:
+            print(f"Downloading mood model for {mood}...")
+            urllib.request.urlretrieve(url, model_path)
+        except Exception as e:
+            raise RuntimeError(f"Failed to download mood model for {mood}: {e}")
 
 
 def extract(audio_path: str, output_path: str) -> None:
