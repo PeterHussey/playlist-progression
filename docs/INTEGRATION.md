@@ -29,7 +29,8 @@ import java.util.concurrent.TimeUnit;
 
 public class FeatureExtractor {
 
-    private static final long TIMEOUT_SECONDS = 30;
+    // Timeout overridden by Python pipeline: 180s default, phase-specific (DSP 60, mood 180)
+    private static final long TIMEOUT_SECONDS = 180;
 
     /**
      * Run a Python extraction script via ProcessBuilder.
@@ -37,10 +38,10 @@ public class FeatureExtractor {
      * @param script   script filename (e.g. "extract_essentia.py")
      * @param audioPath absolute path to the input audio file
      * @param outputPath absolute path for the JSON sidecar output
-     * @throws ExtractionException if the process times out or returns non-zero
+     * @throws RuntimeException if the process times out or returns non-zero
      */
     public void extract(String script, String audioPath, String outputPath)
-            throws ExtractionException {
+            throws RuntimeException {
 
         ProcessBuilder pb = new ProcessBuilder(
             "python3", script, audioPath, outputPath
@@ -56,21 +57,21 @@ public class FeatureExtractor {
             boolean finished = process.waitFor(TIMEOUT_SECONDS, TimeUnit.SECONDS);
             if (!finished) {
                 process.destroyForcibly();
-                throw new ExtractionException(
+                throw new RuntimeException(
                     "Script " + script + " timed out after " + TIMEOUT_SECONDS + "s"
                 );
             }
 
             int exitCode = process.exitValue();
             if (exitCode != 0) {
-                throw new ExtractionException(
+                throw new RuntimeException(
                     "Script " + script + " exited with code " + exitCode
                     + "\nstderr: " + stderr
                 );
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new ExtractionException("Interrupted while waiting for " + script, e);
+            throw new RuntimeException("Interrupted while waiting for " + script, e);
         }
     }
 }
@@ -294,6 +295,34 @@ behaviour:
 
 ---
 
+
+
+## Batch Protocol
+
+### Manifest Schema
+Each entry in the manifest JSON must conform to:
+
+```json
+[
+  {"audio_path": "<absolute-path-to-audio>", "output_path": "<absolute-path-for-sidecar>"},
+]
+```
+
+### Summary Schema
+The batch worker writes a summary JSON at `<manifest_path>.summary.json`:
+
+```json
+{
+  "ok": ["<absolute-path-to-sidecar>", ...],
+  "failed": [{"output": "<absolute-path-to-sidecar>", "error": "<error-message>"}, ...]
+}
+```
+
+The pipeline stores sidecars from `output_path` into the `features` table. Failed entries are logged in the `runs` table `config_snapshot` and retried on subsequent runs via the `--mood-only` flag.
+
+### Error Isolation
+Batch processing isolates failures per-track. A non-zero exit or timeout for one track does not halt processing of remaining tracks; the summary records `ok`/`failed` per entry, and failed tracks fall back to single-track extraction on the next run.
+
 ## Error Recovery
 
 The orchestrator tracks which tracks have been successfully extracted in the
@@ -301,7 +330,17 @@ The orchestrator tracks which tracks have been successfully extracted in the
 
 - Tracks with a non-null `extracted_at` are skipped.
 - Tracks that previously failed (no row in `features`) are retried.
+  - If the failure was a DSP error, the full extraction re-runs.
+  - If the failure was a mood error, the mood key is omitted (NULL) in the stored
+    `feature_json`, and the track is flagged for retry via `--mood-only` on the next run.
 - This makes the extraction step resumable after crashes or interruptions.
+
+### NULL+retry Rule
+When mood extraction fails, the `mood` key is intentionally omitted from the stored
+`feature_json` (i.e. `mood` is `NULL`). This is not a data corruption — it signals
+the pipeline to retry mood extraction on the next run via `--mood-only`. The DSP
+features (loudness, tempo, key, spectral, rhythm) are always retained from the first
+successful extraction, so only the mood component needs re-computation.
 
 The `runs` table logs each pipeline execution with a `config_snapshot` so that
 changes in configuration between runs are visible in the audit trail.
