@@ -13,6 +13,8 @@ AXIS_NAMES = [
     "tempo.bpm", "tempo.confidence", "key.confidence",
     "spectral.centroid", "spectral.rolloff", "spectral.flatness",
     "rhythm.danceability", "rhythm.onset_rate",
+    "mood.happy", "mood.sad", "mood.aggressive", "mood.relaxed",
+    "mood.electronic", "mood.party", "mood.acoustic",
 ]
 def extract_features(row):
     raw = json.loads(row["feature_json"] or "{}")
@@ -33,6 +35,14 @@ def extract_features(row):
     rhythm = raw.get("rhythm", {})
     vec.append(float(rhythm.get("danceability", 0)))
     vec.append(float(rhythm.get("onset_rate", 0)))
+    mood = raw.get("mood", {})
+    vec.append(float(mood.get("happy", 0)))
+    vec.append(float(mood.get("sad", 0)))
+    vec.append(float(mood.get("aggressive", 0)))
+    vec.append(float(mood.get("relaxed", 0)))
+    vec.append(float(mood.get("electronic", 0)))
+    vec.append(float(mood.get("party", 0)))
+    vec.append(float(mood.get("acoustic", 0)))
     return vec, raw
 def main():
     conn = sqlite3.connect(str(DB))
