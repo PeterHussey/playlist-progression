@@ -210,6 +210,16 @@ if command -v "$PYTHON_BIN" &>/dev/null; then
         check "tinytag import" "FAIL" "tinytag not installed (pip install tinytag)"
     fi
 fi
+
+# Check mood extraction function is available
+if command -v "$PYTHON_BIN" &>/dev/null; then
+    mood_check=$("$PYTHON_BIN" -c "from scripts.extract_essentia import extract_mood; print('Mood extraction available')" 2>&1)
+    if [ $? -eq 0 ]; then
+        check "mood extraction" "PASS" "extract_mood function available"
+    else
+        check "mood extraction" "FAIL" "extract_mood not importable"
+    fi
+fi
 echo ""
 
 # ── Stage 5: JSON output format ─────────────────────────────────────
