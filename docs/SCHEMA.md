@@ -103,9 +103,10 @@ tempo, beat strength, and rhythmic stability into a single score.
 
 ### highlevel.mood
 
-Mood descriptors are neural-network-derived probability scores. Each value
-represents the model's confidence that the track belongs to a particular mood
-category. Together they form a multi-dimensional mood space.
+Mood descriptors are neural-network-derived probability scores extracted using
+Essentia's pre-trained MusiCNN TensorFlow classifiers. Each value represents
+the model's confidence that the track belongs to a particular mood category.
+Together they form a multi-dimensional mood space.
 
 | Descriptor | Range | Branching Role |
 |---|---|---|
@@ -116,6 +117,13 @@ category. Together they form a multi-dimensional mood space.
 | `highlevel.mood_electronic` | 0–1 | **Synthetic axis.** High values indicate synthesised, produced, or electronically-generated sounds. Useful for genre-blending transitions between organic and electronic sections. |
 | `highlevel.mood_party` | 0–1 | **Celebration axis.** High values indicate high-energy, social, danceable tracks. Overlaps with danceability but captures a broader social/energetic vibe rather than just rhythmic regularity. |
 | `highlevel.mood_acoustic` | 0–1 | **Organic axis.** High values indicate naturally recorded, unplugged, or instrument-driven tracks. The complement to electronic — drives transitions between synthetic and acoustic textures. |
+
+**Implementation Notes:**
+- Requires TensorFlow >= 2.10.0
+- Models download automatically from Essentia servers on first use
+- Audio is resampled to 16kHz for MusiCNN models
+- Extraction adds ~7-14 seconds per track
+- Graceful fallback to 0.0 if extraction fails for any mood
 
 ---
 
