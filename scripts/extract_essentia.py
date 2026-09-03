@@ -192,6 +192,17 @@ def extract(audio_path: str, output_path: str) -> None:
         },
     }
 
+    # Add mood extraction
+    try:
+        mood_scores = extract_mood(audio)
+        result["mood"] = {k: round(v, 4) for k, v in mood_scores.items()}
+    except Exception as e:
+        print(f"Warning: Mood extraction failed: {e}", file=sys.stderr)
+        result["mood"] = {
+            "happy": 0.0, "sad": 0.0, "aggressive": 0.0, "relaxed": 0.0,
+            "electronic": 0.0, "party": 0.0, "acoustic": 0.0
+        }
+
     with open(output_path, "w") as f:
         json.dump(result, f, indent=2)
 
