@@ -28,7 +28,7 @@ CREATE TABLE tracks (
     artist      TEXT,
     duration_sec REAL,
     feature_json TEXT,                -- full Essentia JSON output
-    clap_embedding BLOB,             -- nullable 512-dim float array (CLAP)
+    clap_embedding TEXT,              -- nullable 512-dim float array (CLAP, JSON)
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
@@ -41,7 +41,7 @@ CREATE TABLE tracks (
 | `artist` | TEXT | From ID3/Vorbis tags. May be NULL. |
 | `duration_sec` | REAL | Track length in seconds. |
 | `feature_json` | TEXT | The complete Essentia JSON output stored as a text blob. Keeps extract scripts decoupled from schema — no migration needed when Essentia adds descriptors. |
-| `clap_embedding` | BLOB | Nullable. Populated only when CLAP extraction is enabled. Stored as raw bytes (512 × 4-byte floats). Remains NULL when CLAP is disabled. |
+| `clap_embedding` | TEXT | Nullable. Populated only when CLAP extraction is enabled. Stored as a JSON array of 512 floats (matches `init_database()` in `ingest_pipeline.py`, which is the runtime source of truth). Remains NULL when CLAP is disabled. |
 | `created_at` | TIMESTAMP | Set automatically on row creation. |
 
 > **Design note:** Storing `feature_json` as a single TEXT column rather than
@@ -163,7 +163,7 @@ section in ARCHITECTURE.md for the distance band thresholds.
 ## Optional: CLAP Embeddings
 
 When CLAP extraction is enabled, the 512-dimensional embedding vector is stored
-in the `clap_embedding` BLOB column on the `tracks` table. The embedding captures
+in the `clap_embedding` TEXT column on the `tracks` table as a JSON array. The embedding captures
 high-level semantic similarity — two tracks with similar mood, instrumentation,
 or lyrical theme will have similar CLAP vectors even if their low-level DSP
 features differ.
@@ -172,5 +172,5 @@ CLAP embeddings are **optional**. When disabled, the column remains NULL and the
 similarity engine operates purely on Essentia descriptors. The prototype is fully
 functional without CLAP.
 
-A dedicated `clap_embeddings` table is not needed — the BLOB column on `tracks`
+A dedicated `clap_embeddings` table is not needed — the TEXT column on `tracks`
 keeps the schema simple and avoids an extra JOIN during sampling.

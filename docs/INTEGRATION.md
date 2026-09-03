@@ -200,8 +200,9 @@ vector.
 ```
 
 The `embedding` array contains exactly 512 floating-point values representing
-the audio's position in CLAP's learned latent space. The Java side deserialises
-this into a `float[512]` and stores it as a `BLOB` in the `features` table.
+the audio's position in CLAP's learned latent space. The Python side deserialises
+this into a `list[float]` and stores it as a JSON array in the `tracks.clap_embedding`
+TEXT column (via `json.dumps`; read back with `json.loads`).
 
 ---
 
@@ -313,7 +314,7 @@ behaviour:
 
 | Key | Default | Description |
 |---|---|---|
-| `clap.enabled` | `false` | When `false`, `extract_clap.py` is never called and the CLAP BLOB column stays `NULL`. |
+| `clap.enabled` | `false` | When `false`, `extract_clap.py` is never called and the CLAP TEXT column stays `NULL`. |
 | `clap.model_path` | (required if enabled) | Local filesystem path to the CLAP model weights. |
 | `extraction.timeout_sec` | `180` | Per-file subprocess timeout in seconds. (Overridden by `--timeout` flag or `EXTRACT_TIMEOUT_SEC` env var.) |
 | `extraction.python_bin` | `"python3"` | Path to the Python interpreter. Allows override for virtual environments. |

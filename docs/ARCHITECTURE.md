@@ -38,7 +38,7 @@ for debugging and interactive use.
 
 3. **Store.** The Java layer persists all extracted features into SQLite. Essentia
    output is stored as a `TEXT` column holding the raw JSON. CLAP embeddings are
-   stored as a `BLOB` column that is populated only when extraction was enabled.
+   stored as a `TEXT` column holding a JSON array that is populated only when extraction was enabled.
    Metadata rows are updated with file hashes and feature-extraction timestamps so
    re-runs can skip already-processed tracks.
 
@@ -77,7 +77,7 @@ one JSON sidecar. The scripts are intentionally stateless — no shared memory,
 no daemon process. This makes them easy to test, debug, and replace independently.
 
 CLAP extraction is gated behind a configuration flag. When disabled, the pipeline
-runs Essentia-only and the CLAP BLOB column remains `NULL`. This keeps the core
+runs Essentia-only and the CLAP TEXT column remains `NULL`. This keeps the core
 similarity engine functional on machines where the neural embedding model is too
 large or where GPU acceleration is unavailable.
 
@@ -93,14 +93,14 @@ chosen for zero-configuration deployment and straightforward file-based backup.
 | Table | Purpose |
 |---|---|
 | `tracks` | One row per audio file. Columns: `id` (INTEGER PK), `path` (TEXT UNIQUE), `title`, `artist`, `album`, `duration_sec`, `sha256`, `ingested_at`. |
-| `features` | One row per extracted track. Columns: `track_id` (FK → tracks), `essentia_json` (TEXT — full Essentia output), `clap_embedding` (BLOB — nullable 512-dim float array), `extracted_at`. |
+| `features` | One row per extracted track. Columns: `track_id` (FK → tracks), `essentia_json` (TEXT — full Essentia output), `clap_embedding` (TEXT — nullable 512-dim float array as JSON), `extracted_at`. |
 | `runs` | Audit log for pipeline executions. Columns: `id`, `started_at`, `completed_at`, `tracks_processed`, `config_snapshot` (TEXT — JSON of thresholds and flags). |
 
 Feature data is stored in its native JSON shape rather than being decomposed into
 individual columns. This avoids schema migrations every time Essentia adds a new
 descriptor and keeps the extract scripts decoupled from database schema changes.
-CLAP embeddings use `BLOB` storage because they are fixed-width dense vectors that
-benefit from compact binary representation.
+CLAP embeddings use `TEXT` (JSON array) storage for consistency with `feature_json`
+— human-readable and directly matching what `ingest_pipeline.py` writes via `json.dumps`.
 
 ---
 

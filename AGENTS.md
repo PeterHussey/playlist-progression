@@ -88,7 +88,7 @@ Count, order, and names are owned by `src/recommender/feature_converter.py` (`AX
 
 Non-obvious semantics worth knowing inline: `key.fifths_x`/`key.fifths_y` are cos/sin coordinates on a 24-slot circle of fifths where relative major/minor are adjacent (C–Am = 1 step, C–G = 2 steps, C–F# = 12 steps); unknown key/mode → (0, 0). `key.confidence` is retained as a separate reliability axis.
 
-**CLAP embeddings** (optional): 512-dim, stored in `clap_embedding` BLOB. **Not used for distance** in this prototype.
+**CLAP embeddings** (optional): 512-dim, stored in `clap_embedding` TEXT as a JSON array (matches `init_database()` runtime DDL). **Not used for distance** in this prototype.
 
 ---
 

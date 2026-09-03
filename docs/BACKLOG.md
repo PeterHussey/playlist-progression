@@ -161,9 +161,10 @@ title/artist throughout).
   BRANCHING.md for consistency) to document raw ranges. Clamping/normalising
   at extract time considered and deliberately rejected — stored raw, distance
   is z-scored.
-- **`clap_embedding` TEXT vs BLOB — ⬜ Open (docs/schema).** Code stores JSON
-  text (`ingest_pipeline.py`, `init_database` TEXT) while `database/init.db`
-  and SCHEMA.md specify BLOB raw bytes. Pick one and align code + docs.
+- **`clap_embedding` TEXT vs BLOB — ✅ Done (docs/schema).** Kept TEXT JSON
+  (`ingest_pipeline.py` `init_database` TEXT, `json.dumps`/`json.loads`
+  round-trip); aligned `database/init.db`, SCHEMA.md, ARCHITECTURE.md,
+  INTEGRATION.md and AGENTS.md to TEXT.
 - **`tests/run_qa.sh` is destructive — ⬜ Open.** Stage 1 does
   `rm -f database/playlist.db` — running QA wipes the real library DB (not
   run during this E2E for exactly that reason). Point QA at a temp DB.

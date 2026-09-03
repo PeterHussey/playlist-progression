@@ -9,6 +9,6 @@ CREATE TABLE IF NOT EXISTS tracks (
     artist      TEXT,
     duration_sec REAL,
     feature_json TEXT,
-    clap_embedding BLOB,
+    clap_embedding TEXT,
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
