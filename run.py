@@ -6,6 +6,9 @@ Usage:
 
 Or with CLAP embedding extraction:
     python run.py /path/to/music database/music_features.db --clap
+
+Or forcing re-extraction of tracks already in the database:
+    python run.py /path/to/music database/music_features.db --re-extract
 """
 
 import argparse
@@ -37,6 +40,12 @@ def main() -> None:
         action="store_true",
         help="Also extract CLAP embeddings",
     )
+    parser.add_argument(
+        "--re-extract",
+        action="store_true",
+        help="Re-extract features even for tracks already in the database "
+        "(rows with a stale extractor version are refreshed automatically)",
+    )
     args = parser.parse_args()
 
     music_dir = Path(args.music_dir)
@@ -46,7 +55,7 @@ def main() -> None:
         print(f"Error: Not a directory: {music_dir}", file=sys.stderr)
         sys.exit(1)
 
-    tracks = run_pipeline(music_dir, db_path, extract_clap=args.clap)
+    tracks = run_pipeline(music_dir, db_path, extract_clap=args.clap, force=args.re_extract)
     print(f"\nIngestion complete: {len(tracks)} tracks processed")
 
 

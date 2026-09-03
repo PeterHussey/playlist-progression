@@ -31,6 +31,12 @@ import sys
 # Essentia imports are deferred to runtime so import errors appear on stderr
 # rather than crashing at module load time.
 
+# Sidecar schema version. Bump when extraction output changes meaningfully
+# (e.g. 1.0 -> 1.1: spectral descriptors switched from full-track FFT to
+# frame-wise means). The ingest pipeline re-extracts rows whose stored
+# version differs from this constant.
+EXTRACTOR_VERSION = "1.1"
+
 
 def download_mood_models(moods: list[str], models_dir: Path) -> None:
     """Download mood classification models from Essentia servers.
@@ -217,7 +223,7 @@ def extract(audio_path: str, output_path: str) -> None:
 
     # Build output
     result = {
-        "version": "1.0",
+        "version": EXTRACTOR_VERSION,
         "duration_sec": round(duration, 2),
         "loudness": {
             "integrated": round(float(integrated), 2),

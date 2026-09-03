@@ -88,57 +88,62 @@ def init_database(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
-def process_file(conn: sqlite3.Connection, audio_file: Path, extract_clap_flag: bool = False) -> Track:
-    """Process a single audio file: insert metadata, run extraction, store features.
+def _stored_version(feature_json: str | None) -> str | None:
+    """Return the extractor version recorded in a stored sidecar, if any."""
+    try:
+        return json.loads(feature_json or "{}").get("version")
+    except (json.JSONDecodeError, AttributeError):
+        return None
 
-    Args:
-        conn: open SQLite connection
-        audio_file: path to the audio file
-        extract_clap_flag: whether to also run CLAP embedding extraction
 
-    Returns:
-        the Track object that was inserted
+def _current_extractor_version() -> str | None:
+    """Return the current extractor version, or None if undeterminable.
+
+    Single source of truth is EXTRACTOR_VERSION in scripts/extract_essentia.py.
+    Returns None (version check disabled) when the scripts package is not
+    importable, so ingestion degrades to the legacy skip-if-present behaviour.
     """
-    path_str = str(audio_file)
+    try:
+        from scripts.extract_essentia import EXTRACTOR_VERSION
 
-    # Check if already ingested
-    cur = conn.execute("SELECT 1 FROM tracks WHERE file_path = ?", (path_str,))
-    if cur.fetchone():
-        # Return existing track
-        row = conn.execute("SELECT * FROM tracks WHERE file_path = ?", (path_str,)).fetchone()
-        return Track(
-            id=row[0],
-            file_path=Path(row[1]),
-            title=row[2],
-            artist=row[3],
-            duration_sec=row[4] if row[4] is not None else 0.0,
-            features=convert(row[5]) if row[5] else None,
-            feature_json=row[5] if row[5] is not None else None,
-            clap_embedding=None if row[6] is None else json.loads(row[6]),
-        )
+        return EXTRACTOR_VERSION
+    except Exception:
+        return None
 
-    # Insert metadata row
+
+def _run_extraction(
+    conn: sqlite3.Connection,
+    track_id: int,
+    audio_file: Path,
+    track: Track,
+    extract_clap_flag: bool = False,
+) -> None:
+    """Run Essentia (+optional CLAP) extraction and UPDATE the track row.
+
+    Updates feature_json, duration_sec, title and artist in place.
+    """
+    # Refresh metadata (cheap; picks up retagged files on re-extract)
     title, artist = read_metadata(audio_file)
+    track.set_title(title)
+    track.set_artist(artist)
     conn.execute(
-        "INSERT INTO tracks (file_path, title, artist, duration_sec) VALUES (?, ?, ?, ?)",
-        (path_str, title, artist, 0.0),
+        "UPDATE tracks SET title = ?, artist = ? WHERE id = ?",
+        (title, artist, track_id),
     )
-    conn.commit()
-    track_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-
-    track = Track(id=track_id, file_path=audio_file)
 
     # Run Essentia extraction
     essentia_output = Path(f"essentia_{track_id}.json")
     try:
         extract_essentia(audio_file, essentia_output)
         feature_json = json.loads(essentia_output.read_text())
+        duration = float(feature_json.get("duration_sec", 0.0) or 0.0)
         conn.execute(
-            "UPDATE tracks SET feature_json = ? WHERE id = ?",
-            (json.dumps(feature_json), track_id),
+            "UPDATE tracks SET feature_json = ?, duration_sec = ? WHERE id = ?",
+            (json.dumps(feature_json), duration, track_id),
         )
-        track.feature_json = json.dumps(feature_json)
-        track.features = convert(track.feature_json)
+        track.set_feature_json(json.dumps(feature_json))
+        track.set_features(convert(track.get_feature_json()))
+        track.set_duration_sec(duration)
     finally:
         if essentia_output.exists():
             essentia_output.unlink()
@@ -153,22 +158,91 @@ def process_file(conn: sqlite3.Connection, audio_file: Path, extract_clap_flag: 
                 "UPDATE tracks SET clap_embedding = ? WHERE id = ?",
                 (json.dumps(clap_data.get("embedding", [])), track_id),
             )
-            track.clap_embedding = clap_data.get("embedding")
+            track.set_clap_embedding(clap_data.get("embedding"))
         finally:
             if clap_output.exists():
                 clap_output.unlink()
 
     conn.commit()
+
+
+def process_file(
+    conn: sqlite3.Connection,
+    audio_file: Path,
+    extract_clap_flag: bool = False,
+    force: bool = False,
+) -> Track:
+    """Process a single audio file: insert metadata, run extraction, store features.
+
+    Args:
+        conn: open SQLite connection
+        audio_file: path to the audio file
+        extract_clap_flag: whether to also run CLAP embedding extraction
+        force: re-extract even when a current-version row already exists
+
+    Rows whose stored extractor version differs from the current
+    EXTRACTOR_VERSION are re-extracted automatically (stale features).
+    """
+    path_str = str(audio_file)
+
+    # Check if already ingested
+    row = conn.execute(
+        "SELECT * FROM tracks WHERE file_path = ?", (path_str,)
+    ).fetchone()
+    if row is not None:
+        stored = _stored_version(row[5])
+        current = _current_extractor_version()
+        stale = row[5] is None or (
+            current is not None and stored != current
+        )
+        if not force and not stale:
+            # Return existing track
+            return Track(
+                id=row[0],
+                file_path=Path(row[1]),
+                title=row[2],
+                artist=row[3],
+                duration_sec=row[4] if row[4] is not None else 0.0,
+                features=convert(row[5]) if row[5] else None,
+                feature_json=row[5] if row[5] is not None else None,
+                clap_embedding=None if row[6] is None else json.loads(row[6]),
+            )
+        track = Track(
+            id=row[0],
+            file_path=audio_file,
+            title=row[2],
+            artist=row[3],
+            duration_sec=row[4] if row[4] is not None else 0.0,
+            features=convert(row[5]) if row[5] else None,
+            feature_json=row[5] if row[5] is not None else None,
+            clap_embedding=None if row[6] is None else json.loads(row[6]),
+        )
+        _run_extraction(conn, row[0], audio_file, track, extract_clap_flag=extract_clap_flag)
+        return track
+
+    # Insert metadata row
+    title, artist = read_metadata(audio_file)
+    conn.execute(
+        "INSERT INTO tracks (file_path, title, artist, duration_sec) VALUES (?, ?, ?, ?)",
+        (path_str, title, artist, 0.0),
+    )
+    conn.commit()
+    track_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+    track = Track(id=track_id, file_path=audio_file)
+
+    _run_extraction(conn, track_id, audio_file, track, extract_clap_flag=extract_clap_flag)
     return track
 
 
-def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False) -> list[Track]:
+def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, force: bool = False) -> list[Track]:
     """Run the full ingestion pipeline.
 
     Args:
         music_dir: root directory containing audio files
         db_path: path to the SQLite database file
         extract_clap: whether to run CLAP embedding extraction
+        force: re-extract tracks even when a current-version row exists
 
     Returns:
         list of Track objects that were processed
@@ -185,7 +259,7 @@ def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False) -> 
         tracks: list[Track] = []
         for audio_file in audio_files:
             try:
-                track = process_file(conn, audio_file, extract_clap_flag=extract_clap)
+                track = process_file(conn, audio_file, extract_clap_flag=extract_clap, force=force)
                 tracks.append(track)
                 print(f"  processed: {audio_file.name} (id={track.get_id()})")
             except Exception as e:

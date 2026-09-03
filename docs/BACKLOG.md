@@ -102,6 +102,21 @@ QA runs 25/25.
 
 ## 8. Lower-priority hardening 🔶
 
-- `--re-extract` / version-checked re-ingest (reruns skip existing rows → stale features) — ⬜ Open
-- Seed selection as CLI arg (currently hardcoded `id == 17` in generate_playlist.py) — 🔶 partial: fallback to highest-id seed added (never crashes); CLI arg still open
-- Use CLAP embeddings for distance (currently stored, never sampled) — ⬜ Open
+- `--re-extract` / version-checked re-ingest ✅ Done (2026-09-03) —
+  `scripts/extract_essentia.py` owns `EXTRACTOR_VERSION` (bumped 1.0→1.1 for
+  the frame-wise spectral fix); `process_file()`/`run_pipeline()` accept
+  `force`, auto-refresh rows whose stored version differs, and now also
+  populate the `duration_sec` column (previously left at 0.0) plus
+  title/artist on re-extract. `run.py` gains `--re-extract`. Covered by
+  `tests/test_hardening.py` (skip-current / stale-version / force paths).
+- Seed selection as CLI arg ✅ Done (2026-09-03) — `generate_playlist.py`
+  now takes `--db`, `--seed-id`, `--limit`, `--hold-axis`, `--output`,
+  `--summary` (defaults reproduce legacy behaviour: seed id 17 else highest
+  id, 9 entries, hold `tempo.bpm`). Unknown seed exits 1, unknown axis or
+  bad limit exits 2; empty database exits 1 instead of crashing in `max()`.
+  Covered by `tests/test_hardening.py`.
+- Use CLAP embeddings for distance (currently stored, never sampled) — ⏸️
+  **Deferred (design, not hardening).** Fusing a 512-dim CLAP vector with the
+  20-dim Essentia axes needs a weighting/normalisation design (raw fusion
+  would let CLAP dominate the RMS distance and silently change all band
+  behaviour). Parked until a fusion proposal exists; no code change.
