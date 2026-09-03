@@ -73,7 +73,8 @@ def test_process_file_skips_current_version(tmp_path, monkeypatch):
         "src.recommender.ingest_pipeline.extract_essentia",
         side_effect=RuntimeError("must not be called"),
     ):
-        track = process_file(conn, audio)
+        track, status = process_file(conn, audio)
+    assert status == "skipped"
     assert track.get_title() == "Old Title"
     assert track.get_duration_sec() == 111.0
     conn.close()
@@ -101,7 +102,8 @@ def test_process_file_reextracts_stale_version(tmp_path, monkeypatch):
 
     with patch("src.recommender.ingest_pipeline.extract_essentia",
                side_effect=fake_extract) as m:
-        track = process_file(conn, audio)
+        track, status = process_file(conn, audio)
+    assert status == "re-extracted"
     assert m.call_count == 2  # DSP phase + mood phase
     assert track.get_duration_sec() == 222.0
     row = conn.execute(
@@ -134,7 +136,8 @@ def test_process_file_force_reextracts_current(tmp_path, monkeypatch):
 
     with patch("src.recommender.ingest_pipeline.extract_essentia",
                side_effect=fake_extract) as m:
-        track = process_file(conn, audio, force=True)
+        track, status = process_file(conn, audio, force=True)
+    assert status == "re-extracted"
     assert m.call_count == 2  # DSP phase + mood phase
     assert track.get_duration_sec() == 333.0
     conn.close()

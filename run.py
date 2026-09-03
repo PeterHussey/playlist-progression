@@ -108,7 +108,9 @@ def main() -> None:
         batch=args.batch,
         models_dir=Path(args.models_dir) if args.models_dir else None,
     )
-    print(f"\nIngestion complete: {len(tracks)} tracks processed")
+    # Unpack tuples (Track, status) from run_pipeline's return value
+    processed_tracks = [track for track, _ in tracks]
+    print(f"\nIngestion complete: {len(processed_tracks)} tracks processed")
 
 
 if __name__ == "__main__":

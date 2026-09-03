@@ -207,7 +207,7 @@ def process_file(
     dsp_timeout: int | None = None,
     mood_timeout: int | None = None,
     no_mood: bool = False,
-) -> Track:
+) -> tuple[Track, str]:
     """Process a single audio file: insert metadata, run extraction, store features.
 
     Args:
@@ -222,6 +222,9 @@ def process_file(
 
     Rows whose stored extractor version differs from the current
     EXTRACTOR_VERSION are re-extracted automatically (stale features).
+
+    Returns:
+        Tuple of (Track, status) where status is "skipped", "re-extracted", or "processed"
     """
     path_str = str(audio_file)
 
@@ -236,8 +239,8 @@ def process_file(
             current is not None and stored != current
         )
         if not force and not stale:
-            # Return existing track
-            return Track(
+            # Return existing track (no extraction needed)
+            track = Track(
                 id=row[0],
                 file_path=Path(row[1]),
                 title=row[2],
@@ -247,6 +250,7 @@ def process_file(
                 feature_json=row[5] if row[5] is not None else None,
                 clap_embedding=None if row[6] is None else json.loads(row[6]),
             )
+            return track, "skipped"
         track = Track(
             id=row[0],
             file_path=audio_file,
@@ -258,7 +262,7 @@ def process_file(
             clap_embedding=None if row[6] is None else json.loads(row[6]),
         )
         _run_extraction(conn, row[0], audio_file, track, extract_clap_flag=extract_clap_flag, timeout=timeout, dsp_timeout=dsp_timeout, mood_timeout=mood_timeout, no_mood=no_mood)
-        return track
+        return track, "re-extracted"
 
     # Insert metadata row
     title, artist = read_metadata(audio_file)
@@ -272,10 +276,10 @@ def process_file(
     track = Track(id=track_id, file_path=audio_file)
 
     _run_extraction(conn, track_id, audio_file, track, extract_clap_flag=extract_clap_flag, timeout=timeout, dsp_timeout=dsp_timeout, mood_timeout=mood_timeout, no_mood=no_mood)
-    return track
+    return track, "processed"
 
 
-def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, force: bool = False, timeout: int | None = None, dsp_timeout: int | None = None, mood_timeout: int | None = None, no_mood: bool = False, batch: bool = False, models_dir: Path | None = None) -> list[Track]:
+def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, force: bool = False, timeout: int | None = None, dsp_timeout: int | None = None, mood_timeout: int | None = None, no_mood: bool = False, batch: bool = False, models_dir: Path | None = None) -> list[tuple[Track, str]]:
     """Run the full ingestion pipeline.
 
     Args:
@@ -315,9 +319,9 @@ def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, for
         tracks: list[Track] = []
         for audio_file in audio_files:
             try:
-                track = process_file(conn, audio_file, extract_clap_flag=extract_clap, force=force, timeout=timeout, dsp_timeout=dsp_timeout, mood_timeout=mood_timeout, no_mood=no_mood)
+                track, status = process_file(conn, audio_file, extract_clap_flag=extract_clap, force=force, timeout=timeout, dsp_timeout=dsp_timeout, mood_timeout=mood_timeout, no_mood=no_mood)
                 tracks.append(track)
-                print(f"  processed: {audio_file.name} (id={track.get_id()})")
+                print(f"  {status}: {audio_file.name} (id={track.get_id()})")
             except Exception as e:
                 print(f"  failed: {audio_file.name} — {e}")
                 # Continue to next track — single failure does not halt pipeline
@@ -337,7 +341,7 @@ def _run_pipeline_batch(
     mood_timeout: int | None = None,
     no_mood: bool = False,
     models_dir: Path | None = None,
-) -> list[Track]:
+) -> list[tuple[Track, str]]:
     """Batch path: write manifest, run batch worker once, store results.
 
     Falls back to single-track extraction per-file on batch failure.
@@ -347,7 +351,7 @@ def _run_pipeline_batch(
 
     # Filter to files needing extraction
     pending: list[Path] = []
-    existing_tracks: list[Track] = []
+    existing_tracks: list[tuple[Track, str]] = []
     for audio_file in audio_files:
         path_str = str(audio_file)
         row = conn.execute(
@@ -358,7 +362,7 @@ def _run_pipeline_batch(
             current = _current_extractor_version()
             stale = row[5] is None or (current is not None and stored != current)
             if not stale:
-                existing_tracks.append(Track(
+                existing_tracks.append((Track(
                     id=row[0],
                     file_path=audio_file,
                     title=row[2],
@@ -367,7 +371,7 @@ def _run_pipeline_batch(
                     features=convert(row[5]) if row[5] else None,
                     feature_json=row[5] if row[5] is not None else None,
                     clap_embedding=None if row[6] is None else json.loads(row[6]),
-                ))
+                ), "skipped"))
                 continue
         pending.append(audio_file)
 
@@ -387,7 +391,7 @@ def _run_pipeline_batch(
 
     summary_path = Path(str(manifest_path) + ".summary.json")
 
-    tracks: list[Track] = list(existing_tracks)
+    tracks: list[tuple[Track, str]] = list(existing_tracks)
     try:
         summary = run_batch(manifest_path, summary_path, timeout=timeout, no_mood=no_mood, models_dir=models_dir)
     except Exception as e:
@@ -447,15 +451,15 @@ def _run_pipeline_batch(
                 track_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
             track = Track(id=track_id, file_path=audio_file, title=title, artist=artist, duration_sec=duration, features=convert(json.dumps(sidecar)), feature_json=json.dumps(sidecar))
-            tracks.append(track)
+            tracks.append((track, "re-extracted" if row is not None else "processed"))
             print(f"  batch processed: {audio_file.name} (id={track_id})")
         else:
             # Failed entry — fall back to single-track
             output_file.unlink(missing_ok=True)
             try:
-                track = process_file(conn, audio_file, extract_clap_flag=extract_clap, force=force, timeout=timeout, dsp_timeout=dsp_timeout, mood_timeout=mood_timeout, no_mood=no_mood)
-                tracks.append(track)
-                print(f"  fallback single-track: {audio_file.name} (id={track.get_id()})")
+                track, status = process_file(conn, audio_file, extract_clap_flag=extract_clap, force=force, timeout=timeout, dsp_timeout=dsp_timeout, mood_timeout=mood_timeout, no_mood=no_mood)
+                tracks.append((track, status))
+                print(f"  {status}: {audio_file.name} (id={track.get_id()}) [fallback single-track]")
             except Exception as e2:
                 print(f"  failed: {audio_file.name} — {e2}")
 
