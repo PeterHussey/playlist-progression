@@ -130,15 +130,19 @@ summary. Frame-wise spectral fix validated live (flatness 0.02–0.10, never
 ≈0.000; version 1.1 stored; `duration_sec` populated; real tinytag
 title/artist throughout).
 
-- **30s subprocess timeout too short with mood extraction — ⬜ Open (major).**
-  6/17 tracks failed first pass, 5/17 still failing after retry; one
-  (Little Green) recovered on retry, so the limit is marginal, not
-  deterministic. No file-size correlation. Cause: 7 sequential MusiCNN TF
-  models + cold TF init inside every 30s subprocess. Candidate fixes: raise
-  `TIMEOUT_SECONDS` / make it configurable; long-lived extractor to amortise
-  TF init; partial-success path (keep DSP features, mood 0.0 on timeout).
-  Until fixed, libraries ingest partially (here 12/17) and `--re-extract`
-  inherits the same flakiness.
+- **30s subprocess timeout too short with mood extraction — ✅ Done (2026-09-03).**
+  6/17 tracks failed first pass, 5/17 still failing after retry (one
+  recovered on retry — marginal, not deterministic; no file-size
+  correlation). Cause: 7 sequential MusiCNN TF models + cold TF init inside
+  every 30s subprocess. Fixed in three stages (`774b126..2f19a1a`, 59 tests
+  green): configurable timeout (default 180s overall; DSP 60s / mood 180s
+  via `--timeout`/`--dsp-timeout`/`--mood-timeout` or `EXTRACT_*_TIMEOUT_SEC`
+  env); `--batch` worker loading the 7 TF graphs once per library;
+  two-phase ingest (DSP stored first, mood NULL+retry via `--mood-only`,
+  `--no-mood` escape hatch, one-time `--prefetch`). Design:
+  `docs/superpowers/specs/2026-09-03-timeout-design.md`; plan:
+  `docs/superpowers/plans/2026-09-03-timeout-fix.md`. Manual 17-track
+  full-mood verification still to be run on real audio.
 - **Fallback picks mislabelled with the scheduled band — ⬜ Open.**
   E2E entries read `"Near" d=0.64`, `"Mid" d=0.78`, `"Far" d=0.38` — impossible
   under the 0.3/0.7 thresholds. When a band is empty the generator falls back

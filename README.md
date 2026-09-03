@@ -51,7 +51,7 @@ Total: **20 dimensions** per track, stored as JSON in `tracks.feature_json`.
 - All spectral descriptors are computed frame-wise then aggregated to a single value per track.
 - Tonal analysis uses `SpectralPeaks` → `HPCP` (Harmonic Pitch Class Profile) → `Key` estimation.
 - Loudness uses EBU R128 (`LoudnessEBUR128`), which requires stereo input (mono is duplicated).
-- **Mood descriptors** come from pre-trained Essentia MusiCNN TensorFlow classifiers (one binary model per mood). Each model's activation column is selected from its `classes` metadata and averaged over time frames. Models download automatically to `models/` on first use and require `essentia-tensorflow` + TensorFlow. If a model is missing or predictions fail, mood scores fall back to 0.0 rather than aborting the pipeline. The 7 mood axes participate in the playlist distance computation.
+- **Mood descriptors** come from pre-trained Essentia MusiCNN TensorFlow classifiers (one binary model per mood). Each model's activation column is selected from its `classes` metadata and averaged over time frames. Models download automatically to `models/` on first use and require `essentia-tensorflow` + TensorFlow. If mood prediction fails for a track, the DSP features are still stored and the `mood` key is left NULL (not zero-filled); the next run retries mood via `--mood-only`. The 7 mood axes participate in the playlist distance computation.
 
 **CLAP (semantic embeddings)** — `scripts/extract_clap.py` runs LAION-CLAP (via `laion-clap` Python package) to produce a 512-dim embedding vector per track. Stored as JSON array in `tracks.clap_embedding`. Optional — pipeline works without it.
 
@@ -140,6 +140,21 @@ pip install essentia-tensorflow  # include for mood extraction (Essentia + Tenso
 make run MUSIC_DIR=/path/to/your/music
 # or directly:
 python run.py /path/to/your/music database/playlist.db
+# useful flags:
+#   --clap              also extract CLAP embeddings (requires laion-clap)
+#   --re-extract        re-extract tracks already in the database
+#   --timeout SEC       overall extraction timeout (default 180s, env EXTRACT_TIMEOUT_SEC)
+#   --dsp-timeout SEC   DSP-phase timeout (default 60s)
+#   --mood-timeout SEC  mood-phase timeout (default 180s)
+#   --no-mood           skip mood extraction (DSP only)
+#   --batch             batch mode: one worker loads the 7 TF mood models once
+#                       for the whole library instead of once per track
+#   --models-dir DIR    where mood models live (default models/)
+```
+
+Extraction runs in two phases per track (DSP first, then mood); a mood
+failure keeps the DSP row and retries mood on the next run. See
+`docs/INTEGRATION.md` for the full contract.
 ```
 
 ## Input Processing
@@ -185,7 +200,7 @@ The pipeline is **idempotent** — it tracks processed files by absolute path in
 
 ### Seed Selection
 
-The first track in the generated playlist is the **seed**. Currently the seed is the first track returned by the database query (lowest `id`). Future enhancement: allow specifying a seed track by ID or path.
+The first track in the generated playlist is the **seed**. Pick it with `generate_playlist.py --db <db> --seed-id <id>` (plus `--limit`, `--hold-axis`, `--output`, `--summary`); defaults reproduce the legacy behaviour (seed id 17 if present else highest id, 9 entries, hold `tempo.bpm`).
 
 ## Project Structure
 

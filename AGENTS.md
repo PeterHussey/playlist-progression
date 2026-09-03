@@ -61,7 +61,7 @@ playlist-progression/
 |-------|---------|
 | **Essentia install** | `pip install essentia-tensorflow` — not in requirements.txt. Must be installed in venv before running. |
 | **CLAP optional** | `--clap` flag enables 512-dim embeddings. Requires `pip install laion-clap`. Pipeline works without it. |
-| **Subprocess timeout** | 30 seconds per track (hardcoded in `feature_extractor.py:TIMEOUT_SECONDS`). |
+| **Subprocess timeout** | 180s default overall (DSP 60s / mood 180s), configurable via `--timeout` / `--dsp-timeout` / `--mood-timeout` flags or `EXTRACT_TIMEOUT_SEC` / `EXTRACT_DSP_TIMEOUT_SEC` / `EXTRACT_MOOD_TIMEOUT_SEC` env vars (`src/recommender/feature_extractor.py`). |
 | **Idempotent ingestion** | Tracks tracked by absolute `file_path` (UNIQUE constraint). Re-running skips existing files. |
 | **No real audio in tests** | `tests/sample_audio/` contains placeholder `.mp3` files — Essentia will fail on them. Use real audio for actual runs. |
 | **Python version** | Requires Python 3.10+ (uses `list[Type]` syntax). |
@@ -139,7 +139,7 @@ bash tests/run_qa.sh
 | Add new Essentia descriptor | Edit `scripts/extract_essentia.py` + `src/recommender/feature_converter.py` (`AXIS_NAMES` + `convert()`), add tests in `tests/test_feature_converter.py`, update `docs/SCHEMA.md` |
 | Modify distance bands | Edit `src/recommender/branch_sampler.py` thresholds |
 | Change hold axis for directed jumps | Pass `hold_axis` to `select_directed_jump()` (e.g., `"tempo.bpm"` — must match an `AXIS_NAMES` entry) |
-| Debug extraction failure | Check stderr from `extract_essentia.py` / `extract_clap.py` (30s timeout) |
+| Debug extraction failure | Check stderr from `extract_essentia.py` / `extract_clap.py` (180s default timeout; DSP 60s / mood 180s) |
 | Inspect database | `sqlite3 database/playlist.db "SELECT * FROM tracks;"` |
 | Verify JSON output | `cat branch_playlist.json \| python -m json.tool` |
 
