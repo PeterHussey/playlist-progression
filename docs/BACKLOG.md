@@ -41,15 +41,17 @@ Requires `essentia-tensorflow` + TensorFlow; falls back to 0.0 if unavailable.
 Minor follow-up: doc uses `highlevel.mood_*` while code/JSON use `mood.<key>`
 dot notation — cosmetic, unify if desired.
 
-## 3. Deferred — float-vector conversion gap ⬜
+## 3. Deferred — float-vector conversion gap ✅
 
-`Track.features` is never populated by the pipeline; only `generate_playlist.py`
-knows the axis layout (AXIS_NAMES + hand-rolled extract_features). Decision
-deferred earlier: ingest-time parser vs shared query-time converter vs new DB
-column. Whatever is chosen removes the duplicated axis knowledge.
+`Track.features` was never populated by the pipeline; only `generate_playlist.py`
+knows the axis layout (`AXIS_NAMES` + hand-rolled `extract_features`). Resolved via
+shared query-time converter (`feature_converter.py`) — removes duplicated axis
+knowledge and populates `Track.features` at ingest time.
 
-**Status:** ⬜ Open. Still duplicated in `generate_playlist.py` (AXIS_NAMES +
-extract_features).
+**Status:** ✅ Done (commit `3bed92c`). `feature_converter.py` holds `AXIS_NAMES`
+and `convert()`; `ingest_pipeline.py` sets `track.features` for new/existing rows;
+`generate_playlist.py` imports from converter and deletes its duplicate. TDD test
+`tests/test_feature_converter.py` passes (3/3).
 
 ## 4. Metadata extraction (title/artist) ✅
 
@@ -60,12 +62,19 @@ ID3/Vorbis tag reading (tinytag or mutagen) into `ingest_pipeline.py`.
 to populate `title`/`artist` (added to requirements.txt); all 17 tracks now
 have real title/artist shown in playlists and `playlist_summary.txt`.
 
-## 5. Key value as a similarity axis ⬜
+## 5. Key value as a similarity axis ✅
 
 Only `key.confidence` feeds distance today — a tritone apart scores equal.
 Add circle-of-fifths key distance (harmonically meaningful) as an axis.
 
-**Status:** ⬜ Open.
+**Status:** ✅ Done — `feature_converter.py` maps key+mode to 2D
+circle-of-fifths coordinates (`key.fifths_x`, `key.fifths_y`) on a 24-slot
+circle where relative major/minor are adjacent (C–Am = 1 step, C–G = 2 steps,
+C–F# = 12 steps; enharmonics normalised; unknown → (0, 0)).
+`key.confidence` retained as a reliability axis. AXIS_NAMES 18→20;
+`tests/test_feature_converter.py` covers neighbours-vs-tritone, relative-minor
+adjacency, enharmonics, scale-string fallback, and unknown-key origin.
+SCHEMA.md and README updated.
 
 ## 6. Spectral descriptors frame-wise ⬜
 

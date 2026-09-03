@@ -80,7 +80,7 @@ through musical key and chord colour.
 
 | Descriptor | Values | Branching Role |
 |---|---|---|
-| `lowlevel.tonal.hkey_scale` | string (e.g., "C", "F#") | **Key axis.** The detected musical key of the track. Progressive playlists can circle through the circle of fifths or make deliberate key jumps for emotional effect. |
+| `lowlevel.tonal.hkey_scale` | string (e.g., "C", "F#") | **Key axis.** The detected musical key of the track. Converted to 2D circle-of-fifths coordinates (`key.fifths_x`, `key.fifths_y`) on a 24-slot circle where relative major/minor are adjacent (e.g. C–Am = 1 step, C–G = 2 steps, C–F# = 12 steps). Progressive playlists can circle through the circle of fifths or make deliberate key jumps for emotional effect. `key.confidence` is retained as a separate reliability axis. |
 | `lowlevel.tonal.chord` | string (e.g., "C major", "G minor") | **Harmonic colour.** The detected chord or chord progression root. Useful for harmonic continuity — grouping tracks by shared chord quality for smooth transitions. |
 
 ### rhythm.tempo

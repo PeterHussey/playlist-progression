@@ -14,13 +14,14 @@ Ingests local audio files → extracts Essentia DSP features + optional CLAP emb
 
 | Axis Group | Descriptors | Dimensions |
 |------------|-------------|------------|
+| **Duration** | track length (sec) | 1 |
 | **Loudness** | integrated loudness (LUFS), loudness range (LU) | 2 |
-| **Tonal** | key + scale (via HPCP), key confidence | 2 |
+| **Tonal** | key confidence, key circle-of-fifths (x, y) — derived from the key + scale string | 3 |
 | **Rhythm** | BPM (tempo), beat confidence, danceability, onset rate | 4 |
 | **Spectral** | spectral centroid, spectral rolloff, spectral flatness | 3 |
 | **Mood** | happy, sad, aggressive, relaxed, electronic, party, acoustic | 7 |
 
-Total: **18 dimensions** per track, stored as JSON in `tracks.feature_json`.
+Total: **20 dimensions** per track, stored as JSON in `tracks.feature_json`.
 
 ### Essentia Descriptor Definitions
 
@@ -30,6 +31,7 @@ Total: **18 dimensions** per track, stored as JSON in `tracks.feature_json`.
 | **Loudness Range** | `loudness.range` | dB (LU) | Dynamic range — difference between quiet and loud sections. |
 | **Key + Scale** | `key.scale` | e.g. "A minor" | Estimated musical key and mode via HPCP chroma. |
 | **Key Confidence** | `key.confidence` | 0–1 | Strength of the key estimate. |
+| **Key Fifths X/Y** | `key.fifths_x`, `key.fifths_y` | −1–1 | 2D circle-of-fifths coordinates (cos/sin) on a 24-slot circle where relative major/minor are adjacent (C–Am = 1 step, C–G = 2 steps, C–F# = 12 steps). Unknown key/mode → (0, 0). |
 | **BPM (Tempo)** | `tempo.bpm` | ~40–200 | Beats per minute. Primary rhythmic anchor. |
 | **Beat Confidence** | `tempo.confidence` | 0–1 | Reliability of the beat tracking. |
 | **Danceability** | `rhythm.danceability` | 0–2 | How suitable for dancing — beat strength, regularity, tempo. |
@@ -84,7 +86,7 @@ Given a seed track, candidates are partitioned by standardised distance:
 3. Compute distance on `hold_axis` only
 4. Candidate qualifies if: `non_hold_distance > 0.7σ` **AND** `hold_distance ≤ 0.3σ`
 
-Example: `hold_axis="rhythm.bpm"` → playlist jumps far in timbre/mood/key while keeping tempo constant.
+Example: `hold_axis="tempo.bpm"` → playlist jumps far in timbre/mood/key while keeping tempo constant.
 
 ### Playlist Generation Flow
 
@@ -95,7 +97,7 @@ seed track
     │
     ├─► select_mid()   ──► pick 1 ──► next seed
     │
-    └─► select_directed_jump(hold_axis="rhythm.bpm") ──► pick 1 ──► next seed
+    └─► select_directed_jump(hold_axis="tempo.bpm") ──► pick 1 ──► next seed
     │
     └─► repeat until playlist length reached or candidates exhausted
 ```
@@ -119,7 +121,7 @@ Fallback: if a band is empty, widen to next band. If all empty, pick globally ne
 ## Features
 
 - **Subprocess integration**: Java-free — calls Essentia CLI and CLAP Python scripts via `subprocess.run()`
-- **Essentia DSP features**: loudness (EBU R128), tempo/BPM, key/scale, danceability, spectral centroid/rolloff/flatness
+- **Essentia DSP features**: loudness (EBU R128), tempo/BPM, key/scale + circle-of-fifths key distance, danceability, spectral centroid/rolloff/flatness
 - **Mood descriptors**: 7 mood scores (happy, sad, aggressive, relaxed, electronic, party, acoustic) via pre-trained Essentia MusiCNN TensorFlow classifiers, included in similarity distance
 - **SQLite storage**: `tracks` table with feature JSON and optional CLAP embeddings
 - **Branching recommender**: 3 distance bands — near (≤0.3σ), mid (0.3–0.7σ), far-but-directed (≥0.7σ along specific axis, holding one descriptor constant)
@@ -192,6 +194,7 @@ playlist-progression/
 ├── src/recommender/          # Core pipeline
 │   ├── track.py              # Track dataclass
 │   ├── feature_extractor.py  # Subprocess wrapper for extraction scripts
+│   ├── feature_converter.py  # Axis layout (AXIS_NAMES) + JSON→vector convert()
 │   ├── ingest_pipeline.py    # Main entry: scan → extract → store
 │   ├── branch_sampler.py     # Distance bands + directed jumps
 │   └── playlist_writer.py    # JSON output
@@ -202,7 +205,7 @@ playlist-progression/
 ├── database/init.db          # SQLite schema
 ├── run.py                    # CLI entry point
 ├── Makefile                  # run, init-db, clean targets
-└── requirements.txt          # No external deps (stdlib only)
+└── requirements.txt          # essentia-tensorflow, tinytag, tensorflow (laion-clap optional, installed separately)
 ```
 
 ## Scope Boundaries
