@@ -52,6 +52,23 @@ def main() -> None:
         default=None,
         help="Per-file subprocess timeout in seconds (default 180, env EXTRACT_TIMEOUT_SEC)",
     )
+    parser.add_argument(
+        "--dsp-timeout",
+        type=int,
+        default=None,
+        help="DSP extraction timeout in seconds (default 60, env EXTRACT_DSP_TIMEOUT_SEC)",
+    )
+    parser.add_argument(
+        "--mood-timeout",
+        type=int,
+        default=None,
+        help="Mood extraction timeout in seconds (default 180, env EXTRACT_MOOD_TIMEOUT_SEC)",
+    )
+    parser.add_argument(
+        "--no-mood",
+        action="store_true",
+        help="Skip mood extraction (DSP only)",
+    )
     args = parser.parse_args()
 
     music_dir = Path(args.music_dir)
@@ -61,7 +78,15 @@ def main() -> None:
         print(f"Error: Not a directory: {music_dir}", file=sys.stderr)
         sys.exit(1)
 
-    tracks = run_pipeline(music_dir, db_path, extract_clap=args.clap, force=args.re_extract, timeout=args.timeout)
+    tracks = run_pipeline(
+        music_dir, db_path,
+        extract_clap=args.clap,
+        force=args.re_extract,
+        timeout=args.timeout,
+        dsp_timeout=args.dsp_timeout,
+        mood_timeout=args.mood_timeout,
+        no_mood=args.no_mood,
+    )
     print(f"\nIngestion complete: {len(tracks)} tracks processed")
 
 

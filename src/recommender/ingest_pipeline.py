@@ -118,11 +118,20 @@ def _run_extraction(
     track: Track,
     extract_clap_flag: bool = False,
     timeout: int | None = None,
+    dsp_timeout: int | None = None,
+    mood_timeout: int | None = None,
+    no_mood: bool = False,
 ) -> None:
     """Run Essentia (+optional CLAP) extraction and UPDATE the track row.
 
+    Two-phase extraction:
+      Phase 1: DSP features (always runs)
+      Phase 2: Mood scores (skipped if no_mood, retried on next run if failed)
+
     Updates feature_json, duration_sec, title and artist in place.
     """
+    from .feature_extractor import timeout_for
+
     # Refresh metadata (cheap; picks up retagged files on re-extract)
     title, artist = read_metadata(audio_file)
     track.set_title(title)
@@ -132,10 +141,11 @@ def _run_extraction(
         (title, artist, track_id),
     )
 
-    # Run Essentia extraction
+    # Phase 1: DSP extraction
     essentia_output = Path(f"essentia_{track_id}.json")
+    dsp_eff = timeout if timeout is not None else timeout_for("dsp", dsp_timeout)
     try:
-        extract_essentia(audio_file, essentia_output, timeout=timeout)
+        extract_essentia(audio_file, essentia_output, timeout=dsp_eff, no_mood=True)
         feature_json = json.loads(essentia_output.read_text())
         duration = float(feature_json.get("duration_sec", 0.0) or 0.0)
         conn.execute(
@@ -148,6 +158,27 @@ def _run_extraction(
     finally:
         if essentia_output.exists():
             essentia_output.unlink()
+
+    # Phase 2: Mood extraction (unless no_mood)
+    if not no_mood:
+        mood_eff = timeout if timeout is not None else timeout_for("mood", mood_timeout)
+        try:
+            extract_essentia(audio_file, essentia_output, timeout=mood_eff, mood_only=True)
+            mood_json = json.loads(essentia_output.read_text())
+            parsed = json.loads(track.get_feature_json() or "{}")
+            if "mood" in mood_json:
+                parsed["mood"] = mood_json["mood"]
+            conn.execute(
+                "UPDATE tracks SET feature_json = ? WHERE id = ?",
+                (json.dumps(parsed), track_id),
+            )
+            track.set_feature_json(json.dumps(parsed))
+        except Exception as e:
+            print(f"  mood failed for {audio_file.name} (DSP kept): {e}")
+            # leave mood NULL; next run retries
+        finally:
+            if essentia_output.exists():
+                essentia_output.unlink()
 
     # Optionally run CLAP extraction
     if extract_clap_flag:
@@ -173,6 +204,9 @@ def process_file(
     extract_clap_flag: bool = False,
     force: bool = False,
     timeout: int | None = None,
+    dsp_timeout: int | None = None,
+    mood_timeout: int | None = None,
+    no_mood: bool = False,
 ) -> Track:
     """Process a single audio file: insert metadata, run extraction, store features.
 
@@ -219,7 +253,7 @@ def process_file(
             feature_json=row[5] if row[5] is not None else None,
             clap_embedding=None if row[6] is None else json.loads(row[6]),
         )
-        _run_extraction(conn, row[0], audio_file, track, extract_clap_flag=extract_clap_flag, timeout=timeout)
+        _run_extraction(conn, row[0], audio_file, track, extract_clap_flag=extract_clap_flag, timeout=timeout, dsp_timeout=dsp_timeout, mood_timeout=mood_timeout, no_mood=no_mood)
         return track
 
     # Insert metadata row
@@ -233,11 +267,11 @@ def process_file(
 
     track = Track(id=track_id, file_path=audio_file)
 
-    _run_extraction(conn, track_id, audio_file, track, extract_clap_flag=extract_clap_flag, timeout=timeout)
+    _run_extraction(conn, track_id, audio_file, track, extract_clap_flag=extract_clap_flag, timeout=timeout, dsp_timeout=dsp_timeout, mood_timeout=mood_timeout, no_mood=no_mood)
     return track
 
 
-def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, force: bool = False, timeout: int | None = None) -> list[Track]:
+def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, force: bool = False, timeout: int | None = None, dsp_timeout: int | None = None, mood_timeout: int | None = None, no_mood: bool = False) -> list[Track]:
     """Run the full ingestion pipeline.
 
     Args:
@@ -246,6 +280,9 @@ def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, for
         extract_clap: whether to run CLAP embedding extraction
         force: re-extract tracks even when a current-version row exists
         timeout: per-file subprocess timeout in seconds (None uses default 180)
+        dsp_timeout: DSP-only timeout override (None uses 60)
+        mood_timeout: mood-only timeout override (None uses 180)
+        no_mood: if True, skip mood extraction entirely
 
     Returns:
         list of Track objects that were processed
@@ -262,7 +299,7 @@ def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, for
         tracks: list[Track] = []
         for audio_file in audio_files:
             try:
-                track = process_file(conn, audio_file, extract_clap_flag=extract_clap, force=force, timeout=timeout)
+                track = process_file(conn, audio_file, extract_clap_flag=extract_clap, force=force, timeout=timeout, dsp_timeout=dsp_timeout, mood_timeout=mood_timeout, no_mood=no_mood)
                 tracks.append(track)
                 print(f"  processed: {audio_file.name} (id={track.get_id()})")
             except Exception as e:

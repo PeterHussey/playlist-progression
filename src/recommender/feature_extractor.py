@@ -80,16 +80,34 @@ def run_script(script: Path, audio_path: Path, output_path: Path, timeout: int |
         raise RuntimeError(f"Script {script} did not produce output at {output_path}")
 
 
-def extract_essentia(audio_path: Path, output_path: Path, timeout: int | None = None) -> None:
+def extract_essentia(audio_path: Path, output_path: Path, timeout: int | None = None, no_mood: bool = False, mood_only: bool = False) -> None:
     """Run extract_essentia.py on an audio file.
 
     Args:
         audio_path: path to the input audio file
         output_path: path where the JSON sidecar will be written
         timeout: per-file timeout in seconds (default 180, env EXTRACT_TIMEOUT_SEC)
+        no_mood: if True, skip mood extraction (DSP only)
+        mood_only: if True, run only mood extraction on existing sidecar
     """
     script = Path(__file__).parent.parent.parent / "scripts" / "extract_essentia.py"
-    run_script(script, audio_path, output_path, timeout=timeout)
+    cmd = [sys.executable, str(script), str(audio_path), str(output_path)]
+    if no_mood:
+        cmd.append("--no-mood")
+    if mood_only:
+        cmd.append("--mood-only")
+    eff = resolve_timeout(timeout, "EXTRACT_TIMEOUT_SEC", DEFAULT_TIMEOUT_SEC)
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=eff)
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f"Script {script} timed out after {eff}s") from e
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Script {script} exited with code {result.returncode}"
+            + (f"\nstderr: {result.stderr}" if result.stderr else "")
+        )
+    if not output_path.exists():
+        raise RuntimeError(f"Script {script} did not produce output at {output_path}")
 
 
 def extract_clap(audio_path: Path, output_path: Path) -> None:
@@ -101,6 +119,26 @@ def extract_clap(audio_path: Path, output_path: Path) -> None:
     """
     script = Path(__file__).parent.parent.parent / "scripts" / "extract_clap.py"
     run_script(script, audio_path, output_path)
+
+
+def timeout_for(phase: str, explicit: int | None = None) -> int:
+    """Resolve the effective timeout for a specific extraction phase.
+
+    Args:
+        phase: extraction phase ("dsp" or "mood")
+        explicit: caller-supplied timeout (highest priority)
+
+    Returns:
+        Effective timeout in seconds
+
+    Raises:
+        ValueError: if phase is not "dsp" or "mood"
+    """
+    if phase == "dsp":
+        return resolve_timeout(explicit, "EXTRACT_DSP_TIMEOUT_SEC", DSP_TIMEOUT_SEC)
+    if phase == "mood":
+        return resolve_timeout(explicit, "EXTRACT_MOOD_TIMEOUT_SEC", MOOD_TIMEOUT_SEC)
+    raise ValueError(f"Unknown phase: {phase}")
 
 
 def ensure_mood_models(models_dir: Path | None = None, timeout: int | None = None) -> None:

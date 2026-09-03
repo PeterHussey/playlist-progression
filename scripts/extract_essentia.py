@@ -176,31 +176,17 @@ def compute_spectral_descriptors(audio) -> tuple[float, float, float]:
     )
 
 
-def extract(audio_path: str, output_path: str) -> None:
-    """Run Essentia extraction and write JSON sidecar."""
-    try:
-        import essentia
-        import essentia.standard as es
-    except ImportError as e:
-        print(f"Error: Essentia not installed: {e}", file=sys.stderr)
-        sys.exit(1)
+def extract_dsp(audio) -> dict:
+    """Extract DSP-only features (loudness, tempo, spectral, key, rhythm, duration).
 
-    # Load audio
-    try:
-        loader = es.MonoLoader(filename=audio_path)
-        audio = loader()
-    except Exception as e:
-        print(f"Error loading audio: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    if len(audio) == 0:
-        print("Error: empty audio file", file=sys.stderr)
-        sys.exit(1)
+    Returns a dict WITHOUT mood key — mood is added separately.
+    """
+    import essentia.standard as es
+    import numpy as np
 
     duration = len(audio) / 44100.0  # assume 44.1kHz
 
     # Loudness (LoudnessEBUR128 requires stereo; duplicate mono channel)
-    import numpy as np
     stereo = np.column_stack((audio, audio))
     ebu = es.LoudnessEBUR128()
     _, _, integrated, loud_range = ebu(stereo)
@@ -221,7 +207,7 @@ def extract(audio_path: str, output_path: str) -> None:
     onset_result = es.OnsetRate()(audio)
     onset_rate = onset_result[1] if isinstance(onset_result, tuple) else onset_result
 
-    # Build output
+    # Build output (NO mood key)
     result = {
         "version": EXTRACTOR_VERSION,
         "duration_sec": round(duration, 2),
@@ -249,20 +235,88 @@ def extract(audio_path: str, output_path: str) -> None:
             "onset_rate": round(float(onset_rate), 2),
         },
     }
+    return result
 
-    # Add mood extraction
+
+def extract(audio_path: str, output_path: str, include_mood: bool = True) -> None:
+    """Run Essentia extraction and write JSON sidecar."""
     try:
-        mood_scores = extract_mood(audio)
-        result["mood"] = {k: round(v, 4) for k, v in mood_scores.items()}
+        import essentia
+        import essentia.standard as es
+    except ImportError as e:
+        print(f"Error: Essentia not installed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Load audio
+    try:
+        loader = es.MonoLoader(filename=audio_path)
+        audio = loader()
     except Exception as e:
-        print(f"Warning: Mood extraction failed: {e}", file=sys.stderr)
-        result["mood"] = {
-            "happy": 0.0, "sad": 0.0, "aggressive": 0.0, "relaxed": 0.0,
-            "electronic": 0.0, "party": 0.0, "acoustic": 0.0
-        }
+        print(f"Error loading audio: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if len(audio) == 0:
+        print("Error: empty audio file", file=sys.stderr)
+        sys.exit(1)
+
+    result = extract_dsp(audio)
+
+    # Add mood extraction if requested
+    if include_mood:
+        try:
+            mood_scores = extract_mood(audio)
+            result["mood"] = {k: round(v, 4) for k, v in mood_scores.items()}
+        except Exception as e:
+            print(f"Warning: Mood extraction failed: {e}", file=sys.stderr)
+            # DO NOT write zeros: omit mood key so pipeline stores NULL+retry
 
     with open(output_path, "w") as f:
         json.dump(result, f, indent=2)
+
+
+def extract_mood_only(audio_path: str, output_path: str) -> None:
+    """Load existing sidecar, extract mood, merge, and rewrite.
+
+    Used for --mood-only mode: retries mood extraction on a track
+    that previously had mood NULL.
+    """
+    try:
+        import essentia
+        import essentia.standard as es
+    except ImportError as e:
+        print(f"Error: Essentia not installed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # Load existing sidecar
+    output = Path(output_path)
+    if not output.exists():
+        print(f"Error: sidecar not found for mood-only: {output_path}", file=sys.stderr)
+        sys.exit(1)
+
+    existing = json.loads(output.read_text())
+
+    # Load audio
+    try:
+        loader = es.MonoLoader(filename=audio_path)
+        audio = loader()
+    except Exception as e:
+        print(f"Error loading audio: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    if len(audio) == 0:
+        print("Error: empty audio file", file=sys.stderr)
+        sys.exit(1)
+
+    # Extract mood
+    try:
+        mood_scores = extract_mood(audio)
+        existing["mood"] = {k: round(v, 4) for k, v in mood_scores.items()}
+    except Exception as e:
+        print(f"Warning: Mood extraction failed: {e}", file=sys.stderr)
+        # DO NOT write zeros: omit mood key so pipeline stores NULL+retry
+
+    with open(output_path, "w") as f:
+        json.dump(existing, f, indent=2)
 
 
 def main():
@@ -273,6 +327,8 @@ def main():
     p.add_argument("output_path", nargs="?")
     p.add_argument("--prefetch", action="store_true", help="Download mood classification models")
     p.add_argument("--models-dir", default="models", help="Directory to store downloaded models")
+    p.add_argument("--no-mood", action="store_true", help="Skip mood extraction (DSP only)")
+    p.add_argument("--mood-only", action="store_true", help="Run only mood extraction on existing sidecar")
     args = p.parse_args()
 
     if args.prefetch:
@@ -284,12 +340,15 @@ def main():
 
     if not args.audio_path or not args.output_path:
         print(
-            f"Usage: {sys.argv[0]} <audio_path> <output_path> [--prefetch]",
+            f"Usage: {sys.argv[0]} <audio_path> <output_path> [--prefetch] [--no-mood] [--mood-only] [--models-dir DIR]",
             file=sys.stderr,
         )
         sys.exit(2)
 
-    extract(args.audio_path, args.output_path)
+    if args.mood_only:
+        extract_mood_only(args.audio_path, args.output_path)
+    else:
+        extract(args.audio_path, args.output_path, include_mood=not args.no_mood)
 
 
 if __name__ == "__main__":

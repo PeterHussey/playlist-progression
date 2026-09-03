@@ -92,13 +92,17 @@ def test_process_file_reextracts_stale_version(tmp_path, monkeypatch):
     from unittest.mock import patch
 
     def fake_extract(audio_path, output_path, **kwargs):
-        Path(output_path).write_text(
-            json.dumps(_sidecar("1.1", duration=222.0)))
+        if kwargs.get("mood_only"):
+            Path(output_path).write_text(
+                json.dumps({"mood": {}}))
+        else:
+            Path(output_path).write_text(
+                json.dumps(_sidecar("1.1", duration=222.0)))
 
     with patch("src.recommender.ingest_pipeline.extract_essentia",
                side_effect=fake_extract) as m:
         track = process_file(conn, audio)
-    assert m.call_count == 1
+    assert m.call_count == 2  # DSP phase + mood phase
     assert track.get_duration_sec() == 222.0
     row = conn.execute(
         "SELECT feature_json, duration_sec FROM tracks").fetchone()
@@ -121,13 +125,17 @@ def test_process_file_force_reextracts_current(tmp_path, monkeypatch):
     from unittest.mock import patch
 
     def fake_extract(audio_path, output_path, **kwargs):
-        Path(output_path).write_text(
-            json.dumps(_sidecar(EXTRACTOR_VERSION, duration=333.0)))
+        if kwargs.get("mood_only"):
+            Path(output_path).write_text(
+                json.dumps({"mood": {}}))
+        else:
+            Path(output_path).write_text(
+                json.dumps(_sidecar(EXTRACTOR_VERSION, duration=333.0)))
 
     with patch("src.recommender.ingest_pipeline.extract_essentia",
                side_effect=fake_extract) as m:
         track = process_file(conn, audio, force=True)
-    assert m.call_count == 1
+    assert m.call_count == 2  # DSP phase + mood phase
     assert track.get_duration_sec() == 333.0
     conn.close()
 
