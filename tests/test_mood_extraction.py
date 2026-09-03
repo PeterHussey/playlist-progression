@@ -30,21 +30,25 @@ def test_mood_models_download():
 
 
 def test_mood_extraction_with_mock():
-    """Test mood extraction with mocked TensorFlow."""
+    """Test mood extraction with mocked TensorFlow and download."""
     from unittest.mock import patch, MagicMock
     import numpy as np
 
-    # Mock TensorFlow components
-    with patch('essentia.standard.TensorflowPredictMusiCNN') as mock_predict:
+    # Mock download and TensorFlow components to avoid network and model files
+    with patch('scripts.extract_essentia.download_mood_models') as mock_download, \
+         patch('essentia.standard.TensorflowPredictMusiCNN', create=True) as mock_predict:
         mock_predict.return_value = MagicMock(return_value=np.array([0.8]))
 
         from scripts.extract_essentia import extract_mood
 
         # Create dummy audio
-        audio = np.random.randn(16000)  # 1 second at 16kHz
+        audio = np.random.randn(44100)  # 1 second at 44.1kHz
 
-        # Test extraction
+        # Test extraction (download is mocked, Resample will fail gracefully → all scores 0.0)
         scores = extract_mood(audio, models_dir=Path("test_models"))
 
         assert isinstance(scores, dict)
         assert "happy" in scores
+        assert len(scores) == 7
+        # download_mood_models should have been called (but mocked, so no network)
+        mock_download.assert_called_once()

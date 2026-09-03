@@ -62,6 +62,54 @@ def download_mood_models(moods: list[str], models_dir: Path) -> None:
             raise RuntimeError(f"Failed to download mood model for {mood}: {e}")
 
 
+def extract_mood(audio, models_dir: Path = Path("models")) -> dict[str, float]:
+    """Extract mood scores using MusiCNN classifiers.
+    
+    Args:
+        audio: Audio signal (numpy array, 44.1kHz)
+        models_dir: Directory containing mood models
+        
+    Returns:
+        Dictionary mapping mood names to scores (0-1)
+    """
+    moods = ["happy", "sad", "aggressive", "relaxed", "electronic", "party", "acoustic"]
+    scores = {}
+    
+    # Download models if missing
+    try:
+        download_mood_models(moods, models_dir)
+    except RuntimeError as e:
+        print(f"Warning: Failed to download mood models: {e}", file=sys.stderr)
+        return {mood: 0.0 for mood in moods}
+    
+    # Resample audio to 16kHz for MusiCNN
+    try:
+        from essentia.standard import Resample
+        audio_16k = Resample(inputSampleRate=44100, outputSampleRate=16000)(audio)
+    except Exception as e:
+        print(f"Warning: Audio resampling failed: {e}", file=sys.stderr)
+        return {mood: 0.0 for mood in moods}
+    
+    # Extract mood scores
+    for mood in moods:
+        model_path = models_dir / f"mood_{mood}-musicnn-msd-1.pb"
+        
+        if not model_path.exists():
+            print(f"Warning: Mood model not found for {mood}", file=sys.stderr)
+            scores[mood] = 0.0
+            continue
+        
+        try:
+            from essentia.standard import TensorflowPredictMusiCNN
+            activations = TensorflowPredictMusiCNN(graphFilename=str(model_path))(audio_16k)
+            scores[mood] = float(activations.mean())
+        except Exception as e:
+            print(f"Warning: Mood extraction failed for {mood}: {e}", file=sys.stderr)
+            scores[mood] = 0.0
+    
+    return scores
+
+
 def extract(audio_path: str, output_path: str) -> None:
     """Run Essentia extraction and write JSON sidecar."""
     try:
