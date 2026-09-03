@@ -37,7 +37,7 @@ def test_mood_extraction_with_mock():
     # Mock download and TensorFlow components to avoid network and model files
     with patch('scripts.extract_essentia.download_mood_models') as mock_download, \
          patch('essentia.standard.TensorflowPredictMusiCNN', create=True) as mock_predict:
-        mock_predict.return_value = MagicMock(return_value=np.array([0.8]))
+        mock_predict.return_value = MagicMock(return_value=np.array([[0.8, 0.2], [0.7, 0.3]]))
 
         from scripts.extract_essentia import extract_mood
 

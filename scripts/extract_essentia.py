@@ -101,8 +101,10 @@ def extract_mood(audio, models_dir: Path = Path("models")) -> dict[str, float]:
         
         try:
             from essentia.standard import TensorflowPredictMusiCNN
+            import numpy as np
             activations = TensorflowPredictMusiCNN(graphFilename=str(model_path))(audio_16k)
-            scores[mood] = float(activations.mean())
+            arr = np.asarray(activations)
+            scores[mood] = float(arr[:, 0].mean())
         except Exception as e:
             print(f"Warning: Mood extraction failed for {mood}: {e}", file=sys.stderr)
             scores[mood] = 0.0
