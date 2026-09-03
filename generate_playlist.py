@@ -129,10 +129,13 @@ def main():
         tempo = raw.get("tempo", {})
         spec = raw.get("spectral", {})
         rhythm = raw.get("rhythm", {})
+        mood = raw.get("mood", {})
         lines.append(f"   Duration: {raw.get('duration_sec', 0):.1f}s | Loudness: {loud.get('integrated', 0):.1f} LUFS (range {loud.get('range', 0):.1f})")
         lines.append(f"   Tempo: {tempo.get('bpm', 0):.0f} BPM (conf {tempo.get('confidence', 0):.2f}) | Key: {raw.get('key', {}).get('scale', 'N/A')}")
         lines.append(f"   Spectral: centroid={spec.get('centroid', 0):.0f} Hz, rolloff={spec.get('rolloff', 0):.0f} Hz, flatness={spec.get('flatness', 0):.3f}")
         lines.append(f"   Rhythm: danceability={rhythm.get('danceability', 0):.2f}, onset_rate={rhythm.get('onset_rate', 0):.1f}/sec")
+        lines.append(f"   Mood: happy={mood.get('happy', 0):.2f}, sad={mood.get('sad', 0):.2f}, aggressive={mood.get('aggressive', 0):.2f}, "
+                     f"relaxed={mood.get('relaxed', 0):.2f}, electronic={mood.get('electronic', 0):.2f}, party={mood.get('party', 0):.2f}, acoustic={mood.get('acoustic', 0):.2f}")
         lines.append("")
     Path("playlist_summary.txt").write_text("\n".join(lines) + "\n")
     print(f"\nPlaylist JSON: branch_playlist.json")
