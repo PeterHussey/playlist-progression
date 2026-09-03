@@ -183,19 +183,32 @@ this into a `float[512]` and stores it as a `BLOB` in the `features` table.
 
 ### Timeout
 
-Each subprocess has a **30-second hard timeout** measured from `Process.start()`
-to `Process.waitFor()`. If the script does not complete within this window:
+Each subprocess has a **default 180-second timeout** measured from `Process.start()` 
+to `Process.waitFor()`, with phase-specific overrides. The effective timeout is 
+determined by precedence: explicit flag > environment variable > phase default.
 
+### Phase defaults
+- **DSP phase**: 60 seconds (environment variable `EXTRACT_DSP_TIMEOUT_SEC`, default 60)
+- **Mood phase**: 180 seconds (environment variable `EXTRACT_MOOD_TIMEOUT_SEC`, default 180)
+- **Overall extraction** (single-track and batch): 180 seconds (environment variable 
+  `EXTRACT_TIMEOUT_SEC`, default 180)
+
+### CLI flags
+- `--timeout SECONDS`: override overall extraction timeout
+- `--dsp-timeout SECONDS`: override DSP-only timeout
+- `--mood-timeout SECONDS`: override mood-only timeout
+- `--no-mood`: skip mood extraction entirely
+- `--batch MANIFEST`: run batch worker (single TF graph load across all tracks)
+- `--prefetch`: download mood classification models
+
+If the process does not complete within the effective timeout:
 1. `process.destroyForcibly()` is called to kill the process tree.
-2. An `ExtractionException` is thrown with a descriptive message.
-3. The track is logged as failed and the orchestrator **continues** to the next
+2. A `RuntimeError` is thrown with a descriptive message.
+3. The track is logged as failed and the orchestrator **continues** to the next 
    track. The pipeline is not halted.
 
-The 30-second limit is chosen to accommodate large FLAC files (100+ MB) on
-moderate hardware while preventing runaway scripts from blocking the pipeline
-indefinitely.
-
-### Exit Code Check
+Per-file timeout is applied via `subprocess.run(timeout=eff)`. The batch worker 
+shares a single overall timeout for the entire manifest.
 
 After the process completes, the orchestrator checks the exit code:
 

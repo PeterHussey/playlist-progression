@@ -32,6 +32,10 @@ The pipeline has five sequential stages: **Ingest → Extract → Store → Samp
    features alone. Each subprocess writes its JSON output to a temporary file, which
    the Java side reads back and closes.
 
+Worker notes: the batch worker loads TensorFlow models once and reuses them across
+tracks, amortising the initialisation cost. Single-track extraction remains retained
+for debugging and interactive use.
+
 3. **Store.** The Java layer persists all extracted features into SQLite. Essentia
    output is stored as a `TEXT` column holding the raw JSON. CLAP embeddings are
    stored as a `BLOB` column that is populated only when extraction was enabled.
