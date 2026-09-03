@@ -13,7 +13,7 @@ Weekend-scale **Python** prototype for music similarity and playlist generation 
 ```bash
 # Setup
 python -m venv .venv && source .venv/bin/activate
-pip install essentia              # required
+pip install -r requirements.txt   # essentia-tensorflow, tinytag, tensorflow
 pip install laion-clap            # optional (for CLAP embeddings)
 
 # Run pipeline (recursive scan of music directory)
@@ -58,7 +58,7 @@ playlist-progression/
 
 | Issue | Details |
 |-------|---------|
-| **Essentia install** | `pip install essentia` — not in requirements.txt. Must be installed in venv before running. |
+| **Essentia install** | `pip install essentia-tensorflow` — not in requirements.txt. Must be installed in venv before running. |
 | **CLAP optional** | `--clap` flag enables 512-dim embeddings. Requires `pip install laion-clap`. Pipeline works without it. |
 | **Subprocess timeout** | 30 seconds per track (hardcoded in `feature_extractor.py:TIMEOUT_SECONDS`). |
 | **Idempotent ingestion** | Tracks tracked by absolute `file_path` (UNIQUE constraint). Re-running skips existing files. |
@@ -115,6 +115,9 @@ CREATE TABLE tracks (
 ## Testing / QA
 
 ```bash
+# Run tests (network tests skipped by default)
+pytest
+
 # Run QA script (verifies structure, DB init, compilation checks)
 bash tests/run_qa.sh
 
@@ -124,6 +127,8 @@ bash tests/run_qa.sh
 ```
 
 **QA script checks:** project structure, DB init, Java compilation (legacy check), pipeline run, BranchSampler methods, JSON output format, GitHub init commands.
+
+**Tests:** Markers defined in `pytest.ini` — `network` tests are skipped by default (see `tests/conftest.py`).
 
 ---
 
@@ -159,17 +164,5 @@ bash tests/run_qa.sh
 | Verify JSON output | `cat branch_playlist.json \| python -m json.tool` |
 
 ---
-
-## Git / Version Control
-
-```bash
-# Initialize repo (if not done)
-git init
-git add .
-git commit -m "Initial prototype"
-gh repo create playlist-progression --public
-git remote add origin <url-from-gh>
-git push -u origin main
-```
 
 **`.gitignore` excludes:** `.venv/`, `__pycache__/`, `*.db-journal`, `*.db-wal`, `*.db-shm`, `essentia_*.json`, `clap_*.json`, `branch_playlist.json`

@@ -7,27 +7,20 @@ development next steps, ordered by impact.
 
 Status legend: ✅ done · 🔶 done in part · ⬜ open
 
-## 1. Fix the distance-band math (correctness — do first) ⬜
+## 1. Fix the distance-band math (correctness — do first) ✅
 
 **Problem:** `BranchSampler` band thresholds are per-axis σ units (near=0.3,
-mid=0.7), but `compute_distance` returns distance summed across all 11 axes
-(sqrt(Σ w·dz²) ≈ 3.3σ for typical tracks). Nothing ever falls ≤0.3σ, so every
-Near/Mid/Far selection falls through to the nearest-unvisited fallback in
-`generate_playlist.py:84-89`. Evidence: generated playlist "Near" entries have
-distances 2.378–3.334 — impossible for a ≤0.3 threshold. `select_directed_jump`
-qualifies the same way (non-hold > 0.7 trivially true, hold ≤ 0.3 rarely true),
-so Far/hold-axis anchoring is also broken.
+mid=0.7), but `compute_distance` previously returned distance summed across all
+axes (`sqrt(Σ w·dz²)`) — ≈ 3.3σ for typical tracks — making all band thresholds
+impossible to satisfy.
 
 **Fix:** RMS-normalize distance — `d = sqrt(Σ w_i·dz_i² / n_axes)` — so 0.3/0.7
-again mean per-axis σ. Keep thresholds as-is. Verify bands genuinely select
-(distances now fall in 0–~1.5 range) and directed jumps hold `tempo.bpm`.
+mean per-axis σ. Changes: `branch_sampler.py` (`total/n` division), fallback path
+(`diff_sq / n`), docs (`BRANCHING.md` distance formula updated).
 
-**Files:** `src/recommender/branch_sampler.py` (compute_distance + helpers),
-`generate_playlist.py` (re-run), docs/BRANCHING.md (distance formula).
-
-**Status:** ⬜ Open. Still reproduces — generated playlists report Near/Mid/Far
-band distances well above the 0.3/0.7σ thresholds (e.g. 0.37, 0.48, 0.58, 0.70),
-so nearest-unvisited fallback dominates. RMS-normalize as described above.
+**Status:** ✅ Done (commit `843c4cf`, 2026-09-02). Verified: smoke test distance ≈ 1.0
+(11 axes, z-diff=1.0); QA 25/25; `branch_playlist.json` distances fall within
+expected 0–1.5 range; `select_directed_jump` holds `tempo.bpm` correctly.
 
 ## 2. Mood descriptors (7 axes) ✅
 
