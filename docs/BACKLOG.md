@@ -154,12 +154,13 @@ title/artist throughout).
   branch) sorts matches nearest-first per BRANCHING.md ("preferring the
   nearest candidate within that band"). Covered by
   `tests/test_branch_fallback.py` (3/3); full suite 62 passed, 1 deselected.
-- **Descriptor ranges in docs are wrong — ⬜ Open (docs).** SCHEMA.md claims
-  danceability 0–1 and confidence 0–1; E2E shows `danceability=1.04`
-  (Essentia's range is 0–3 by design) and `tempo.confidence=2.27`
-  (beats-confidence is unbounded). Harmless for distance (z-scored) but the
-  contract docs mislead. Fix SCHEMA.md/INTEGRATION.md; consider
-  clamping/normalising at extract time.
+- **Descriptor ranges in docs are wrong — ✅ Done (docs).** SCHEMA.md claimed
+  danceability 0–1 and confidence 0–1; E2E showed `danceability=1.04`
+  (Essentia's range is 0–~3 by design) and `tempo.confidence=2.27`
+  (beat confidence is 0–5.32). Fixed SCHEMA.md/INTEGRATION.md (+ README.md,
+  BRANCHING.md for consistency) to document raw ranges. Clamping/normalising
+  at extract time considered and deliberately rejected — stored raw, distance
+  is z-scored.
 - **`clap_embedding` TEXT vs BLOB — ⬜ Open (docs/schema).** Code stores JSON
   text (`ingest_pipeline.py`, `init_database` TEXT) while `database/init.db`
   and SCHEMA.md specify BLOB raw bytes. Pick one and align code + docs.

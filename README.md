@@ -30,11 +30,11 @@ Total: **20 dimensions** per track, stored as JSON in `tracks.feature_json`.
 | **Integrated Loudness** | `loudness.integrated` | dB (LUFS) | Overall perceived loudness (EBU R128). |
 | **Loudness Range** | `loudness.range` | dB (LU) | Dynamic range — difference between quiet and loud sections. |
 | **Key + Scale** | `key.scale` | e.g. "A minor" | Estimated musical key and mode via HPCP chroma. |
-| **Key Confidence** | `key.confidence` | 0–1 | Strength of the key estimate. |
+| **Key Confidence** | `key.confidence` | unbounded (KeyExtractor strength, stored raw) | Strength of the key estimate. |
 | **Key Fifths X/Y** | `key.fifths_x`, `key.fifths_y` | −1–1 | 2D circle-of-fifths coordinates (cos/sin) on a 24-slot circle where relative major/minor are adjacent (C–Am = 1 step, C–G = 2 steps, C–F# = 12 steps). Unknown key/mode → (0, 0). |
 | **BPM (Tempo)** | `tempo.bpm` | ~40–200 | Beats per minute. Primary rhythmic anchor. |
-| **Beat Confidence** | `tempo.confidence` | 0–1 | Reliability of the beat tracking. |
-| **Danceability** | `rhythm.danceability` | 0–2 | How suitable for dancing — beat strength, regularity, tempo. |
+| **Beat Confidence** | `tempo.confidence` | 0–5.32 (BeatTrackerMultiFeature scale; stored raw, not 0–1) | Reliability of the beat tracking. |
+| **Danceability** | `rhythm.danceability` | 0–~3 (Essentia Danceability; stored raw, not 0–1) | How suitable for dancing — beat strength, regularity, tempo. |
 | **Onset Rate** | `rhythm.onset_rate` | onsets/sec | Rate of note onsets — proxy for rhythmic density. |
 | **Spectral Centroid** | `spectral.centroid` | Hz | "Brightness" — centre of mass of the spectrum. Higher = brighter. |
 | **Spectral Rolloff** | `spectral.rolloff` | Hz | Frequency below which 85% of energy lies. |

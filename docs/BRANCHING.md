@@ -24,7 +24,8 @@ descriptor axes. Before distance calculation, each axis value is normalised to
 z-scores using the population mean and standard deviation of that axis across
 all tracks in the library. This ensures axes with naturally large ranges (e.g.
 spectral_centroid in Hz) don't dominate axes with small ranges (e.g.
-danceability 0–1).
+mood scores 0–1; note `rhythm.danceability` is 0–~3 and `tempo.confidence`
+is 0–5.32 — both stored raw).
 
 | Band | Normalised Distance | Behaviour |
 |---|---|---|

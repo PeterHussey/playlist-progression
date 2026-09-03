@@ -151,7 +151,7 @@ Reads one audio file and writes a JSON sidecar containing DSP descriptors.
   },
   "tempo": {
     "bpm": 128.0,
-    "confidence": 0.92
+    "confidence": 2.27
   },
   "key": {
     "key": "C",
@@ -166,14 +166,23 @@ Reads one audio file and writes a JSON sidecar containing DSP descriptors.
     "flatness": 0.15
   },
   "rhythm": {
-    "danceability": 0.72,
+    "danceability": 1.04,
     "onset_rate": 3.4
   }
 }
 ```
 
-All values are normalised or bounded where possible to support downstream
-Euclidean distance calculations without additional scaling.
+**Value ranges (stored raw, never clamped).** `rhythm.danceability` is the
+Essentia `Danceability` output, 0–~3 by design (higher = more danceable), so
+values > 1 are normal. `tempo.confidence` is the `RhythmExtractor2013`
+(multifeature) beat-tracking confidence on a 0–5.32 scale ([0,1) very low,
+[1,1.5] low, (1.5,3.5] good, (3.5,5.32] excellent) — **not** 0–1.
+`key.confidence` is the `KeyExtractor` strength value (Essentia publishes no
+bounded range). The example above uses realistic values (`confidence: 2.27`
+= good beat confidence; `danceability: 1.04` = moderately danceable).
+Downstream distance computation z-scores every axis, so raw scales need no
+pre-normalisation; clamping at extract time would discard real signal and is
+deliberately not done.
 
 ### `extract_clap.py`
 

@@ -99,7 +99,17 @@ tempo, beat strength, and rhythmic stability into a single score.
 
 | Descriptor | Range | Branching Role |
 |---|---|---|
-| `rhythm.danceability` | 0–1 | **Groove axis.** High danceability (0.8–1.0) indicates strong, regular beats suitable for energetic playlists. Low danceability (0.0–0.3) indicates ambient, free-form, or irregular rhythms. Useful for transitioning between danceable and introspective sections of a playlist. |
+| `rhythm.danceability` | 0–~3 (Essentia `Danceability`; higher = more danceable) | **Groove axis.** High danceability (~2.0+, strong regular beats) suits energetic playlists. Low danceability (<1.0) indicates ambient, free-form, or irregular rhythms. Useful for transitioning between danceable and introspective sections of a playlist. |
+
+> **Value ranges — stored raw, never clamped.** `rhythm.danceability` spans
+> 0–~3 by design (E2E observed 1.04). `tempo.confidence` is the
+> `RhythmExtractor2013` (multifeature) beat-tracking confidence on a 0–5.32
+> scale (E2E observed 2.27 = "good confidence"); it is **not** 0–1.
+> `key.confidence` is the `KeyExtractor` strength value (Essentia publishes no
+> bounded range — stored raw). Clamping/normalising at extract time was
+> considered and deliberately rejected: it would discard real signal (e.g.
+> danceability > 1) for no benefit, since the sampler z-scores every axis
+> before distance computation (see [BRANCHING.md](./BRANCHING.md)).
 
 ### highlevel.mood
 
