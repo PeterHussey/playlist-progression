@@ -436,20 +436,6 @@ def _run_pipeline_batch(
             track = Track(id=track_id, file_path=audio_file, title=title, artist=artist, duration_sec=duration, features=convert(json.dumps(sidecar)), feature_json=json.dumps(sidecar))
             tracks.append(track)
             print(f"  batch processed: {audio_file.name} (id={track_id})")
-
-            # Optionally run CLAP
-            if extract_clap:
-                try:
-                    clap_output = Path(f"clap_{track_id}.json")
-                    extract_clap(audio_file, clap_output)
-                    clap_data = json.loads(clap_output.read_text())
-                    conn.execute(
-                        "UPDATE tracks SET clap_embedding = ? WHERE id = ?",
-                        (json.dumps(clap_data.get("embedding", [])), track_id),
-                    )
-                    track.set_clap_embedding(clap_data.get("embedding"))
-                finally:
-                    clap_output.unlink(missing_ok=True)
         else:
             # Failed entry — fall back to single-track
             output_file.unlink(missing_ok=True)

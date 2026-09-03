@@ -319,24 +319,100 @@ def extract_mood_only(audio_path: str, output_path: str, models_dir: Path = Path
         json.dump(existing, f, indent=2)
 
 
-def run_batch_manifest(manifest_path: str) -> dict:
+def run_batch_manifest(manifest_path: str, models_dir: Path = Path("models")) -> dict:
     """Process a manifest of audio files, reusing loaded TF graphs.
+
+    Loads mood TF predictors ONCE before the loop, reuses across tracks.
+    Per-track: load audio → extract_dsp → apply pre-loaded mood → write sidecar.
+    Individual track failures are caught and recorded; the batch always exits 0.
 
     Args:
         manifest_path: path to manifest JSON (list of {audio_path, output_path})
+        models_dir: directory containing mood classification models
 
     Returns:
         Summary dict: {"ok": [str], "failed": [{"output": str, "error": str}]}
     """
+    try:
+        import essentia
+        import essentia.standard as es
+    except ImportError as e:
+        print(f"Error: Essentia not installed: {e}", file=sys.stderr)
+        sys.exit(1)
+
     manifest = json.loads(Path(manifest_path).read_text())
+
+    # ── Pre-load mood predictors ONCE (amortised TF init) ──
+    moods = ["happy", "sad", "aggressive", "relaxed", "electronic", "party", "acoustic"]
+    mood_predictors: dict[str, object] = {}  # mood_name → TensorflowPredictMusiCNN
+    mood_meta: dict[str, int] = {}           # mood_name → target column index
+
+    try:
+        download_mood_models(moods, models_dir)
+        for mood in moods:
+            model_path = models_dir / f"mood_{mood}-musicnn-msd-1.pb"
+            if not model_path.exists():
+                print(f"Warning: Mood model not found for {mood}", file=sys.stderr)
+                continue
+            # Determine target column from metadata
+            target_idx = 0
+            try:
+                meta_path = models_dir / f"mood_{mood}-musicnn-msd-1.json"
+                meta = json.loads(meta_path.read_text())
+                classes = meta.get("classes") or []
+                target_idx = next((i for i, c in enumerate(classes) if c.lower() == mood.lower()), 0)
+            except Exception:
+                pass
+            from essentia.standard import TensorflowPredictMusiCNN
+            mood_predictors[mood] = TensorflowPredictMusiCNN(graphFilename=str(model_path))
+            mood_meta[mood] = target_idx
+    except Exception as e:
+        print(f"Warning: Failed to pre-load mood models: {e}", file=sys.stderr)
+        mood_predictors = {}
+
+    resampler = es.Resample(inputSampleRate=44100, outputSampleRate=16000)
+
     ok, failed = [], []
     for entry in manifest:
         try:
-            extract(entry["audio_path"], entry["output_path"], include_mood=True)
-            ok.append(entry["output_path"])
+            audio_path = entry["audio_path"]
+            output_path = entry["output_path"]
+
+            # Load audio
+            loader = es.MonoLoader(filename=audio_path)
+            audio = loader()
+            if len(audio) == 0:
+                raise RuntimeError("empty audio file")
+
+            # DSP features
+            result = extract_dsp(audio)
+
+            # Mood (pre-loaded predictors)
+            if mood_predictors:
+                try:
+                    audio_16k = resampler(audio)
+                    import numpy as np
+                    scores = {}
+                    for mood, predictor in mood_predictors.items():
+                        try:
+                            activations = predictor(audio_16k)
+                            arr = np.asarray(activations)
+                            scores[mood] = float(arr[:, mood_meta[mood]].mean())
+                        except Exception as e:
+                            print(f"Warning: Mood extraction failed for {mood}: {e}", file=sys.stderr)
+                            scores[mood] = 0.0
+                    result["mood"] = {k: round(v, 4) for k, v in scores.items()}
+                except Exception as e:
+                    print(f"Warning: Mood extraction failed: {e}", file=sys.stderr)
+                    # Omit mood key → pipeline stores NULL+retry
+
+            with open(output_path, "w") as f:
+                json.dump(result, f, indent=2)
+            ok.append(output_path)
         except Exception as e:
             failed.append({"output": entry["output_path"], "error": str(e)})
             print(f"batch failed {entry['audio_path']}: {e}", file=sys.stderr)
+
     summary = {"ok": ok, "failed": failed}
     summary_path = Path(str(manifest_path) + ".summary.json")
     summary_path.write_text(json.dumps(summary, indent=2))
