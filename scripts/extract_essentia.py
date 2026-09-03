@@ -274,7 +274,7 @@ def extract(audio_path: str, output_path: str, include_mood: bool = True) -> Non
         json.dump(result, f, indent=2)
 
 
-def extract_mood_only(audio_path: str, output_path: str) -> None:
+def extract_mood_only(audio_path: str, output_path: str, models_dir: Path = Path("models")) -> None:
     """Load existing sidecar, extract mood, merge, and rewrite.
 
     Used for --mood-only mode: retries mood extraction on a track
@@ -309,7 +309,7 @@ def extract_mood_only(audio_path: str, output_path: str) -> None:
 
     # Extract mood
     try:
-        mood_scores = extract_mood(audio)
+        mood_scores = extract_mood(audio, models_dir=models_dir)
         existing["mood"] = {k: round(v, 4) for k, v in mood_scores.items()}
     except Exception as e:
         print(f"Warning: Mood extraction failed: {e}", file=sys.stderr)
@@ -346,7 +346,7 @@ def main():
         sys.exit(2)
 
     if args.mood_only:
-        extract_mood_only(args.audio_path, args.output_path)
+        extract_mood_only(args.audio_path, args.output_path, models_dir=Path(args.models_dir))
     else:
         extract(args.audio_path, args.output_path, include_mood=not args.no_mood)
 
