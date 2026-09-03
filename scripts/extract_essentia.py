@@ -48,16 +48,21 @@ def download_mood_models(moods: list[str], models_dir: Path) -> None:
 
     for mood in moods:
         model_file = f"mood_{mood}-musicnn-msd-1.pb"
+        meta_file = f"mood_{mood}-musicnn-msd-1.json"
         model_path = models_dir / model_file
+        meta_path = models_dir / meta_file
 
-        if model_path.exists():
+        if model_path.exists() and meta_path.exists():
             continue
 
-        url = f"{base_url}/mood_{mood}/{model_file}"
+        mood_url = f"{base_url}/mood_{mood}"
 
         try:
             print(f"Downloading mood model for {mood}...")
-            urllib.request.urlretrieve(url, model_path)
+            if not model_path.exists():
+                urllib.request.urlretrieve(f"{mood_url}/{model_file}", model_path)
+            if not meta_path.exists():
+                urllib.request.urlretrieve(f"{mood_url}/{meta_file}", meta_path)
         except Exception as e:
             raise RuntimeError(f"Failed to download mood model for {mood}: {e}")
 
@@ -99,12 +104,23 @@ def extract_mood(audio, models_dir: Path = Path("models")) -> dict[str, float]:
             scores[mood] = 0.0
             continue
         
+        # Determine which column holds the target mood class from model metadata
+        target_idx = 0
+        try:
+            import json as _json
+            meta_path = models_dir / f"mood_{mood}-musicnn-msd-1.json"
+            meta = _json.loads(meta_path.read_text())
+            classes = meta.get("classes") or []
+            target_idx = next((i for i, c in enumerate(classes) if c.lower() == mood.lower()), 0)
+        except Exception:
+            pass  # fall back to column 0
+
         try:
             from essentia.standard import TensorflowPredictMusiCNN
             import numpy as np
             activations = TensorflowPredictMusiCNN(graphFilename=str(model_path))(audio_16k)
             arr = np.asarray(activations)
-            scores[mood] = float(arr[:, 0].mean())
+            scores[mood] = float(arr[:, target_idx].mean())
         except Exception as e:
             print(f"Warning: Mood extraction failed for {mood}: {e}", file=sys.stderr)
             scores[mood] = 0.0
