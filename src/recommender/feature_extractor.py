@@ -9,6 +9,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
 
 # Legacy constant kept for backward compatibility
@@ -20,7 +21,7 @@ DSP_TIMEOUT_SEC = 60
 MOOD_TIMEOUT_SEC = 180
 
 
-def resolve_timeout(explicit: int | None, env_name: str, default: int) -> int:
+def resolve_timeout(explicit: Optional[int], env_name: str, default: int) -> int:
     """Resolve the effective timeout: explicit arg > env var > default.
 
     Args:
@@ -182,6 +183,47 @@ def run_batch(manifest_path: Path, summary_path: Path, timeout: int | None = Non
     summary_file = Path(str(summary_path))
     if not summary_file.exists():
         raise RuntimeError(f"Batch worker did not produce summary at {summary_file}")
+
+    return json.loads(summary_file.read_text())
+
+
+def run_clap_batch(manifest_path: Path, summary_path: Path, timeout: int | None = None) -> dict:
+    """Run extract_clap.py --batch on a manifest of audio files.
+
+    The batch worker loads the CLAP model once and reuses it across tracks,
+    amortising the init cost. Individual track failures are captured in the
+    summary; the worker always exits 0 at the subprocess level.
+
+    Args:
+        manifest_path: path to manifest JSON (list of {audio_path, output_path})
+        summary_path: path where summary JSON will be written
+        timeout: overall subprocess timeout in seconds (None uses default)
+
+    Returns:
+        Summary dict: {"ok": [str], "failed": [{"output": str, "error": str}]}
+
+    Raises:
+        RuntimeError: if the subprocess times out, exits non-zero, or the
+            summary file is not produced
+    """
+    script = Path(__file__).parent.parent.parent / "scripts" / "extract_clap.py"
+    eff = resolve_timeout(timeout, "EXTRACT_TIMEOUT_SEC", DEFAULT_TIMEOUT_SEC)
+    cmd = [sys.executable, str(script), "--batch", str(manifest_path)]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=eff)
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(f"CLAP batch worker timed out after {eff}s") from e
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"CLAP batch worker failed (rc={result.returncode})"
+            + (f"\nstderr: {result.stderr}" if result.stderr else "")
+        )
+
+    summary_file = Path(str(summary_path))
+    if not summary_file.exists():
+        raise RuntimeError(f"CLAP batch worker did not produce summary at {summary_file}")
 
     return json.loads(summary_file.read_text())
 

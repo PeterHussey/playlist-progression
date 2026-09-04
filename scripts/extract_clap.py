@@ -4,6 +4,7 @@ Extract a CLAP embedding from an audio file and write a JSON sidecar.
 
 Usage:
     python3 extract_clap.py <audio_path> <output_path>
+    python3 extract_clap.py --batch MANIFEST
 
 Exit codes:
     0  — Success (output file written)
@@ -20,31 +21,38 @@ Output format (see INTEGRATION.md):
 
 import json
 import sys
+from pathlib import Path
 
 
-def extract(audio_path: str, output_path: str) -> None:
-    """Run CLAP extraction and write JSON sidecar."""
+def _extract_one(audio_path: str, output_path: str) -> None:
+    """Extract CLAP embedding for a single audio file.
+
+    Args:
+        audio_path: path to the input audio file
+        output_path: path where the JSON sidecar will be written
+
+    Raises:
+        ImportError: if laion_clap is not installed
+        Exception: if model loading or embedding extraction fails
+    """
     try:
         import laion_clap
     except ImportError as e:
-        print(f"Error: CLAP not installed: {e}", file=sys.stderr)
-        sys.exit(1)
+        raise
 
     # Load model
     try:
         model = laion_clap.CLAP_Module(enable_fusion=False)
         model.load_ckpt()  # loads default checkpoint
     except Exception as e:
-        print(f"Error loading CLAP model: {e}", file=sys.stderr)
-        sys.exit(1)
+        raise
 
     # Get audio embedding
     try:
         audio_data, _ = model.load_audio([audio_path], sr=48000)
         embedding = model.get_audio_embedding_from_data(x=audio_data, numpy=True)
     except Exception as e:
-        print(f"Error extracting CLAP embedding: {e}", file=sys.stderr)
-        sys.exit(1)
+        raise
 
     # Convert to list of floats
     if hasattr(embedding, "tolist"):
@@ -54,11 +62,7 @@ def extract(audio_path: str, output_path: str) -> None:
 
     # Validate dimension
     if len(emb_list) != 512:
-        print(
-            f"Error: unexpected embedding dimension: {len(emb_list)} (expected 512)",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+        raise RuntimeError(f"unexpected embedding dimension: {len(emb_list)} (expected 512)")
 
     result = {
         "version": "1.0",
@@ -70,10 +74,101 @@ def extract(audio_path: str, output_path: str) -> None:
         json.dump(result, f)
 
 
+def extract(audio_path: str, output_path: str) -> None:
+    """Run CLAP extraction and write JSON sidecar (CLI wrapper).
+
+    Args:
+        audio_path: path to the input audio file
+        output_path: path where the JSON sidecar will be written
+
+    Exits:
+        1 — on runtime error
+    """
+    try:
+        _extract_one(audio_path, output_path)
+    except Exception as e:
+        print(f"Error extracting CLAP embedding: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def run_clap_batch_manifest(manifest_path: str) -> dict:
+    """Process a manifest of audio files, reusing one loaded CLAP model.
+
+    Manifest JSON is a list of {audio_path, output_path}. Individual track
+    failures are caught and recorded; the batch always exits 0.
+
+    Args:
+        manifest_path: path to manifest JSON (list of {audio_path, output_path})
+
+    Returns:
+        Summary dict: {"ok": [str], "failed": [{"output": str, "error": str}]}
+    """
+    try:
+        import laion_clap
+    except ImportError as e:
+        print(f"Error: CLAP not installed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    manifest = json.loads(Path(manifest_path).read_text())
+    try:
+        model = laion_clap.CLAP_Module(enable_fusion=False)
+        model.load_ckpt()
+    except Exception as e:
+        print(f"Error loading CLAP model: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    ok, failed = [], []
+    for entry in manifest:
+        try:
+            audio_path = entry["audio_path"]
+            output_path = entry["output_path"]
+
+            # Check file existence before extraction
+            if not Path(audio_path).exists():
+                raise FileNotFoundError(f"Audio file not found: {audio_path}")
+
+            # Get audio embedding
+            audio_data, _ = model.load_audio([audio_path], sr=48000)
+            embedding = model.get_audio_embedding_from_data(x=audio_data, numpy=True)
+
+            # Convert to list of floats
+            if hasattr(embedding, "tolist"):
+                emb_list = embedding[0].tolist()
+            else:
+                emb_list = [float(x) for x in embedding[0]]
+
+            # Validate dimension
+            if len(emb_list) != 512:
+                raise RuntimeError(f"unexpected embedding dimension: {len(emb_list)} (expected 512)")
+
+            result = {
+                "version": "1.0",
+                "model": "clap-v1",
+                "embedding": emb_list,
+            }
+
+            with open(output_path, "w") as f:
+                json.dump(result, f)
+
+            ok.append(output_path)
+        except Exception as e:
+            failed.append({"output": entry["output_path"], "error": str(e)})
+            print(f"batch failed {entry['audio_path']}: {e}", file=sys.stderr)
+
+    summary = {"ok": ok, "failed": failed}
+    Path(str(manifest_path) + ".summary.json").write_text(json.dumps(summary, indent=2))
+    return summary
+
+
 def main():
+    if len(sys.argv) >= 4 and sys.argv[2] == "--batch":
+        # Batch mode: python3 extract_clap.py --batch MANIFEST
+        run_clap_batch_manifest(sys.argv[3])
+        return
+
     if len(sys.argv) != 3:
         print(
-            f"Usage: {sys.argv[0]} <audio_path> <output_path>",
+            f"Usage: {sys.argv[0]} <audio_path> <output_path> [--batch MANIFEST]",
             file=sys.stderr,
         )
         sys.exit(2)
