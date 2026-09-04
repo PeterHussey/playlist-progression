@@ -161,22 +161,26 @@ def run_clap_batch_manifest(manifest_path: str) -> dict:
 
 
 def main():
-    if len(sys.argv) >= 4 and sys.argv[2] == "--batch":
-        # Batch mode: python3 extract_clap.py --batch MANIFEST
-        run_clap_batch_manifest(sys.argv[3])
+    import argparse
+
+    p = argparse.ArgumentParser()
+    p.add_argument("audio_path", nargs="?", help="Input audio path (required for single-file mode)")
+    p.add_argument("output_path", nargs="?", help="Output JSON sidecar path (required for single-file mode)")
+    p.add_argument("--batch", metavar="MANIFEST", help="Process a batch manifest of audio files")
+    args = p.parse_args()
+
+    if args.batch:
+        run_clap_batch_manifest(args.batch)
         return
 
-    if len(sys.argv) != 3:
+    if not args.audio_path or not args.output_path:
         print(
             f"Usage: {sys.argv[0]} <audio_path> <output_path> [--batch MANIFEST]",
             file=sys.stderr,
         )
         sys.exit(2)
 
-    audio_path = sys.argv[1]
-    output_path = sys.argv[2]
-
-    extract(audio_path, output_path)
+    extract(args.audio_path, args.output_path)
 
 
 if __name__ == "__main__":

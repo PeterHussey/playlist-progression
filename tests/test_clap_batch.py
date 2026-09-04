@@ -42,13 +42,6 @@ def test_clap_batch_manifest_ok_and_failed(tmp_path, monkeypatch):
         {"audio_path": str(good_audio), "output_path": str(good_out)},
         {"audio_path": str(tmp_path / "missing.mp3"), "output_path": str(tmp_path / "bad.json")},
     ]))
-    # Patch scaffolding replaced with real mechanism demonstration:
-    # _extract_one raises FileNotFoundError for missing audio files.
-    # The patch is active within this block but undone before run_clap_batch_manifest
-    # is called (per test design), so the actual failure is handled by the
-    # file-existence check in run_clap_batch_manifest itself.
-    with patch("scripts.extract_clap._extract_one") as _:
-        pass
     summary = run_clap_batch_manifest(str(manifest))
     assert str(good_out) in summary["ok"]
     assert len(summary["failed"]) == 1
@@ -70,3 +63,36 @@ def test_run_clap_batch_wrapper_parses_summary(tmp_path, monkeypatch):
         mrun.return_value = type("R", (), {"returncode": 0, "stderr": ""})()
         out = fe.run_clap_batch(manifest, summary_path, timeout=60)
     assert out == {"ok": [], "failed": []}
+
+
+def test_clap_batch_cli_entry_point(tmp_path, monkeypatch):
+    """Verify main() CLI entry point with --batch flag works end-to-end."""
+    _fake_laion_clap(monkeypatch)
+    from scripts.extract_clap import main, run_clap_batch_manifest
+    import subprocess
+
+    good_audio = tmp_path / "a.mp3"
+    good_audio.touch()
+    good_out = tmp_path / "a.json"
+    manifest = tmp_path / "m.json"
+    manifest.write_text(json.dumps([
+        {"audio_path": str(good_audio), "output_path": str(good_out)},
+    ]))
+
+    # Invoke main() with argv mocked to ["extract_clap.py", "--batch", str(manifest)]
+    with patch.object(sys, "argv", ["extract_clap.py", "--batch", str(manifest)]):
+        main()
+
+    # Sidecar should be written
+    assert good_out.exists()
+    sidecar = json.loads(good_out.read_text())
+    assert len(sidecar["embedding"]) == 512
+    assert sidecar["version"] == "1.0"
+    assert sidecar["model"] == "clap-v1"
+
+    # Summary should be written at manifest + ".summary.json"
+    summary_file = Path(str(manifest) + ".summary.json")
+    assert summary_file.exists()
+    summary = json.loads(summary_file.read_text())
+    assert summary["ok"] == [str(good_out)]
+    assert len(summary["failed"]) == 0

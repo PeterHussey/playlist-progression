@@ -9,7 +9,6 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
 
 
 # Legacy constant kept for backward compatibility
@@ -21,7 +20,7 @@ DSP_TIMEOUT_SEC = 60
 MOOD_TIMEOUT_SEC = 180
 
 
-def resolve_timeout(explicit: Optional[int], env_name: str, default: int) -> int:
+def resolve_timeout(explicit: int | None, env_name: str, default: int) -> int:
     """Resolve the effective timeout: explicit arg > env var > default.
 
     Args:
