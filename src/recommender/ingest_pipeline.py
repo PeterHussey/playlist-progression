@@ -376,41 +376,67 @@ def _run_pipeline_batch(
         pending.append(audio_file)
 
     if not pending:
-        return existing_tracks
+        if not extract_clap:
+            return existing_tracks
+        # If extract_clap is True, return early only if all existing tracks
+        # already have a non-NULL clap_embedding and force is False.
+        # Otherwise fall through so the CLAP pass can populate missing embeddings.
+        all_have_clap = True
+        for track_obj, _status in existing_tracks:
+            path_str = str(track_obj.get_file_path())
+            row = conn.execute(
+                "SELECT id, clap_embedding FROM tracks WHERE file_path = ?",
+                (path_str,),
+            ).fetchone()
+            if row is not None and row[1] is None:
+                all_have_clap = False
+                break
+        if all_have_clap and not force:
+            return existing_tracks
+        # Fall through: pending is empty, CLAP pass will handle CLAP work
 
     # Write manifest
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-        manifest_entries = []
-        for i, af in enumerate(pending):
-            manifest_entries.append({
-                "audio_path": str(af),
-                "output_path": str(Path(f.name).parent / f"batch_{i:04d}_{af.stem}.json"),
-            })
-        json.dump(manifest_entries, f)
-        manifest_path = Path(f.name)
-
-    summary_path = Path(str(manifest_path) + ".summary.json")
-
-    tracks: list[tuple[Track, str]] = list(existing_tracks)
-    try:
-        summary = run_batch(manifest_path, summary_path, timeout=timeout, no_mood=no_mood, models_dir=models_dir)
-    except Exception as e:
-        print(f"  batch worker failed: {e} — falling back to single-track")
-        summary = {"ok": [], "failed": []}
-        # On batch failure, fall back to single-track for each pending file
-        for af in pending:
-            manifest_entry = next(
-                (m for m in manifest_entries if m["audio_path"] == str(af)), None
-            )
-            if manifest_entry:
-                summary["failed"].append({
-                    "output": manifest_entry["output_path"],
-                    "error": str(e),
+    if pending:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            manifest_entries = []
+            for i, af in enumerate(pending):
+                manifest_entries.append({
+                    "audio_path": str(af),
+                    "output_path": str(Path(f.name).parent / f"batch_{i:04d}_{af.stem}.json"),
                 })
-    finally:
-        # Clean up manifest
-        manifest_path.unlink(missing_ok=True)
-        summary_path.unlink(missing_ok=True)
+            json.dump(manifest_entries, f)
+            manifest_path = Path(f.name)
+
+        summary_path = Path(str(manifest_path) + ".summary.json")
+
+        tracks: list[tuple[Track, str]] = list(existing_tracks)
+        try:
+            summary = run_batch(manifest_path, summary_path, timeout=timeout, no_mood=no_mood, models_dir=models_dir)
+        except Exception as e:
+            print(f"  batch worker failed: {e} — falling back to single-track")
+            summary = {"ok": [], "failed": []}
+            # On batch failure, fall back to single-track for each pending file
+            for af in pending:
+                manifest_entry = next(
+                    (m for m in manifest_entries if m["audio_path"] == str(af)), None
+                )
+                if manifest_entry:
+                    summary["failed"].append({
+                        "output": manifest_entry["output_path"],
+                        "error": str(e),
+                    })
+        finally:
+            # Clean up manifest
+            manifest_path.unlink(missing_ok=True)
+            summary_path.unlink(missing_ok=True)
+    else:
+        # No pending entries — empty manifest, empty summary
+        manifest_path = Path(tempfile.mktemp(suffix=".json"))
+        manifest_path.write_text("[]")
+        summary_path = Path(str(manifest_path) + ".summary.json")
+        summary = {"ok": [], "failed": []}
+        tracks: list[tuple[Track, str]] = list(existing_tracks)
+        manifest_entries = []
 
     # Process ok entries — read sidecars and store
     ok_set = set(summary.get("ok", []))

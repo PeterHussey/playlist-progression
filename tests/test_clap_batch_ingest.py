@@ -95,3 +95,41 @@ def test_batch_clap_failure_leaves_null_and_skips_when_no_flag(tmp_path, monkeyp
         ip._run_pipeline_batch(conn, [audio], db, extract_clap=False, force=False, no_mood=True)
     mc.assert_not_called()
     conn.close()
+
+
+def test_batch_clap_populates_existing_track_no_churn(tmp_path, monkeypatch):
+    """CLAP pass populates missing clap_embedding for version-current tracks without version churn.
+
+    When every row is version-current (force=False) and extract_clap=True but all clap_embedding
+    are NULL, the early return must NOT skip the CLAP pass — it should fall through so the CLAP
+    pass can populate the missing embeddings.
+    """
+    monkeypatch.chdir(tmp_path)
+    from src.recommender import ingest_pipeline as ip
+    db = tmp_path / "t.db"
+    _make_db(db)
+    audio = tmp_path / "song.mp3"
+    audio.touch()
+    conn = sqlite3.connect(str(db))
+    # Insert a version-current track with feature_json version "1.1" and NULL clap_embedding
+    conn.execute(
+        "INSERT INTO tracks (file_path, title, artist, duration_sec, feature_json, clap_embedding) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (str(audio), "Song", "Artist", 200.0, json.dumps({"version": "1.1"}), None),
+    )
+    conn.commit()
+    conn.close()
+
+    conn = sqlite3.connect(str(db))
+    with patch.object(ip, "run_batch") as mb, \
+         patch.object(ip, "run_clap_batch", side_effect=_fake_run_clap_batch) as mclap, \
+         patch.object(ip, "read_metadata", return_value=("Song", "Artist")):
+        tracks = ip._run_pipeline_batch(conn, [audio], db, extract_clap=True, force=False, no_mood=True)
+    assert not mb.called, "run_batch must not be called when pending is empty"
+    assert mclap.called, "CLAP batch pass must run when extract_clap=True"
+    row = conn.execute("SELECT feature_json, clap_embedding FROM tracks").fetchone()
+    assert json.loads(row[0])["version"] == "1.1"
+    assert len(json.loads(row[1])) == 512, f"Expected 512 CLAP dims, got {len(json.loads(row[1]))}"
+    statuses = [s for _, s in tracks]
+    assert statuses == ["skipped"], f"Expected ['skipped'], got {statuses}"
+    conn.close()
