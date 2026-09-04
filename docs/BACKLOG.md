@@ -173,3 +173,13 @@ title/artist throughout).
   (usability).** E2E needed three manual steps plus a sqlite lookup to find
   Orphan Girl's id. Consider a Makefile target and `--seed-title` substring
   match.
+
+## 10. CLAP vs Essentia comparison ✅
+
+E2E comparison on 17-track library: Spearman ρ = 0.078 (nearly uncorrelated),
+NN exact match = 5.9% (1/17), top-3 overlap = 17.6%. CLAP walk exercises full
+Near/Mid/Far schedule (3 Near, 4 Mid, 2 Far, 0 fallbacks) vs Essentia's
+Far-only fallback chain. See `docs/comparison-clap-vs-essentia.md` for full
+results and interpretation. **Status:** ✅ Done (2026-09-04). Two code fixes
+required: `extract_clap.py` API (`load_audio` → `get_audio_embedding_from_filelist`)
+and `clap_compare.py` `pairwise_report` (independent CLAP means/stds).
