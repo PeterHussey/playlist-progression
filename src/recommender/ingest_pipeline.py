@@ -431,12 +431,9 @@ def _run_pipeline_batch(
             summary_path.unlink(missing_ok=True)
     else:
         # No pending entries — empty manifest, empty summary
-        manifest_path = Path(tempfile.mktemp(suffix=".json"))
-        manifest_path.write_text("[]")
-        summary_path = Path(str(manifest_path) + ".summary.json")
-        summary = {"ok": [], "failed": []}
-        tracks: list[tuple[Track, str]] = list(existing_tracks)
         manifest_entries = []
+        tracks: list[tuple[Track, str]] = list(existing_tracks)
+        summary = {"ok": [], "failed": []}
 
     # Process ok entries — read sidecars and store
     ok_set = set(summary.get("ok", []))
