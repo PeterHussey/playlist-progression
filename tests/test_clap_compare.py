@@ -44,3 +44,15 @@ def test_clap_walk_deterministic_fallback_labels():
     assert [e["position"] for e in first] == [1, 2, 3]
     assert len({e["track_idx"] for e in first}) == 3
     assert all(e["track_idx"] != 0 for e in first)
+    # C1 fix: every "Fallback:" reason must end with a band label (Near/Mid/Far),
+    # never a bare distance number
+    for entry in first:
+        if entry["reason"] and entry["reason"].startswith("Fallback:"):
+            import re
+            assert re.search(r'\(actual (Near|Mid|Far)\)$', entry["reason"]), \
+                f"Fallback reason does not end with band label: {entry['reason']}"
+    for entry in second:
+        if entry["reason"] and entry["reason"].startswith("Fallback:"):
+            import re
+            assert re.search(r'\(actual (Near|Mid|Far)\)$', entry["reason"]), \
+                f"Fallback reason does not end with band label: {entry['reason']}"

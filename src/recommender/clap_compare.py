@@ -104,8 +104,8 @@ def _rms_zdist(u: list[float], v: list[float], means: list[float], stddevs: list
     total = 0.0
     n = len(u)
     for i in range(n):
-        u_z = (u[i] - means[i]) / (stddevs[i] if stddevs[i] != 0 else 1.0)
-        v_z = (v[i] - means[i]) / (stddevs[i] if stddevs[i] != 0 else 1.0)
+        u_z = (u[i] - means[i]) / (stddevs[i] or 1.0)
+        v_z = (v[i] - means[i]) / (stddevs[i] or 1.0)
         total += (u_z - v_z) ** 2
     return math.sqrt(total / n)
 
@@ -394,7 +394,8 @@ def clap_walk(
                 # Fallback to global nearest
                 selected = dists[0][1]
                 actual_dist = dists[0][0]
-                reason = f"Fallback: scheduled Near empty, global-nearest (actual {actual_dist:.4f})"
+                actual_band = "Near" if actual_dist <= q33 else ("Mid" if actual_dist <= q66 else "Far")
+                reason = f"Fallback: scheduled Near empty, global-nearest (actual {actual_band})"
 
         elif band == "Mid":
             # Mid: q33 < d <= q66
@@ -406,7 +407,8 @@ def clap_walk(
             else:
                 selected = dists[0][1]
                 actual_dist = dists[0][0]
-                reason = f"Fallback: scheduled Mid empty, global-nearest (actual {actual_dist:.4f})"
+                actual_band = "Near" if actual_dist <= q33 else ("Mid" if actual_dist <= q66 else "Far")
+                reason = f"Fallback: scheduled Mid empty, global-nearest (actual {actual_band})"
 
         elif band == "Far":
             # Far: farthest unvisited (no hold axis)
@@ -421,7 +423,8 @@ def clap_walk(
                 # Fallback to global nearest
                 selected = dists[0][1]
                 actual_dist = dists[0][0]
-                reason = f"Fallback: scheduled Far empty, global-nearest (actual {actual_dist:.4f})"
+                actual_band = "Near" if actual_dist <= q33 else ("Mid" if actual_dist <= q66 else "Far")
+                reason = f"Fallback: scheduled Far empty, global-nearest (actual {actual_band})"
 
         if selected is None:
             break  # should not happen if unvisited is non-empty
