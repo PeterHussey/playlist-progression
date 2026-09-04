@@ -35,6 +35,24 @@ def test_pairwise_report_counts_and_agreement():
     assert 0.0 <= agr["top3_overlap_mean"] <= 1.0
 
 
+def test_pairwise_report_mismatched_dimensions():
+    from src.recommender.clap_compare import pairwise_report
+    import math
+    ess = [[0.0, 0.0, 0.0], [1.0, 2.0, 3.0], [2.0, 0.0, 1.0]]  # 3-dim Essentia vectors
+    clap = [
+        [1.0, 0.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0, 0.0],
+    ]  # 5-dim CLAP vectors
+    means = [0.0, 0.0, 0.0]
+    stddevs = [1.0, 1.0, 1.0]
+    rep = pairwise_report(ess, clap, means, stddevs)
+    assert rep["n_pairs"] == 3
+    assert len(rep["essentia_dists"]) == 3 and len(rep["clap_dists"]) == 3
+    assert all(math.isfinite(d) for d in rep["essentia_dists"]), "essentia dists must all be finite"
+    assert all(math.isfinite(d) for d in rep["clap_dists"]), "clap dists must all be finite"
+
+
 def test_clap_walk_deterministic_fallback_labels():
     from src.recommender.clap_compare import clap_walk
     vecs = [[1.0, 0.0], [0.99, 0.01], [0.0, 1.0], [-1.0, 0.0]]
