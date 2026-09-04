@@ -127,10 +127,19 @@ def pairwise_report(
     essentia_dists: list[float] = []
     clap_dists: list[float] = []
 
+    # Compute CLAP population means/stds (512-dim) independently from Essentia ones
+    clap_dim = len(clap_vecs[0])
+    clap_n = len(clap_vecs)
+    clap_means = [sum(v[i] for v in clap_vecs) / clap_n for i in range(clap_dim)]
+    clap_stddevs = [
+        (sum((v[i] - clap_means[i]) ** 2 for v in clap_vecs) / clap_n) ** 0.5 or 1.0
+        for i in range(clap_dim)
+    ]
+
     for i in range(n):
         for j in range(i + 1, n):
             d_ess = _rms_zdist(essentia_vecs[i], essentia_vecs[j], means, stddevs)
-            d_clap = _rms_zdist(clap_vecs[i], clap_vecs[j], means, stddevs)
+            d_clap = _rms_zdist(clap_vecs[i], clap_vecs[j], clap_means, clap_stddevs)
             essentia_dists.append(d_ess)
             clap_dists.append(d_clap)
 

@@ -21,10 +21,7 @@ def _fake_laion_clap(monkeypatch, dim=512, fill=0.5):
         def load_ckpt(self):
             pass
 
-        def load_audio(self, paths, sr=48000):
-            return ([None] * len(paths), None)
-
-        def get_audio_embedding_from_data(self, x, numpy=True):
+        def get_audio_embedding_from_filelist(self, x, use_tensor=False):
             return np.full((len(x), dim), fill, dtype=float)
 
     fake.CLAP_Module = FakeCLAP

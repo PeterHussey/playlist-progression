@@ -49,8 +49,7 @@ def _extract_one(audio_path: str, output_path: str) -> None:
 
     # Get audio embedding
     try:
-        audio_data, _ = model.load_audio([audio_path], sr=48000)
-        embedding = model.get_audio_embedding_from_data(x=audio_data, numpy=True)
+        embedding = model.get_audio_embedding_from_filelist([audio_path])
     except Exception as e:
         raise
 
@@ -128,8 +127,7 @@ def run_clap_batch_manifest(manifest_path: str) -> dict:
                 raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
             # Get audio embedding
-            audio_data, _ = model.load_audio([audio_path], sr=48000)
-            embedding = model.get_audio_embedding_from_data(x=audio_data, numpy=True)
+            embedding = model.get_audio_embedding_from_filelist([audio_path])
 
             # Convert to list of floats
             if hasattr(embedding, "tolist"):
