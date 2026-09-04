@@ -13,7 +13,7 @@ from pathlib import Path
 from tinytag import TinyTag
 
 from .track import Track
-from .feature_extractor import extract_essentia, extract_clap, run_batch, ensure_mood_models
+from .feature_extractor import extract_essentia, extract_clap, run_batch, run_clap_batch, ensure_mood_models
 from .feature_converter import convert
 
 
@@ -462,6 +462,77 @@ def _run_pipeline_batch(
                 print(f"  {status}: {audio_file.name} (id={track.get_id()}) [fallback single-track]")
             except Exception as e2:
                 print(f"  failed: {audio_file.name} — {e2}")
+
+    # --- CLAP batch pass (after Essentia, before commit) ---
+    if extract_clap:
+        # Collect tracks that need CLAP embedding
+        clap_pending: list[str] = []  # file_path strings
+        for audio_file in pending:
+            path_str = str(audio_file)
+            row = conn.execute(
+                "SELECT id, clap_embedding FROM tracks WHERE file_path = ?",
+                (path_str,),
+            ).fetchone()
+            if row is not None and (force or row[1] is None):
+                clap_pending.append(path_str)
+
+        # Also check tracks that were skipped (existing, no re-extraction)
+        for track_obj, _status in existing_tracks:
+            path_str = str(track_obj.get_file_path())
+            row = conn.execute(
+                "SELECT id, clap_embedding FROM tracks WHERE file_path = ?",
+                (path_str,),
+            ).fetchone()
+            if row is not None and (force or row[1] is None):
+                clap_pending.append(path_str)
+
+        if clap_pending:
+            clap_tmp = Path(tempfile.mkdtemp())
+            try:
+                clap_manifest_entries = []
+                for i, fp in enumerate(clap_pending):
+                    audio_p = Path(fp)
+                    clap_manifest_entries.append({
+                        "audio_path": fp,
+                        "output_path": str(clap_tmp / f"clap_{i:04d}_{audio_p.stem}.json"),
+                    })
+                clap_manifest_path = clap_tmp / "clap_manifest.json"
+                clap_manifest_path.write_text(json.dumps(clap_manifest_entries))
+                clap_summary_path = Path(str(clap_manifest_path) + ".summary.json")
+
+                try:
+                    clap_summary = run_clap_batch(clap_manifest_path, clap_summary_path, timeout=timeout)
+                except Exception as e:
+                    print(f"  batch CLAP worker failed: {e} — leaving clap_embedding NULL")
+                    clap_summary = {"ok": [], "failed": []}
+
+                # Store successful CLAP embeddings
+                for entry in clap_manifest_entries:
+                    output_file = Path(entry["output_path"])
+                    if entry["output_path"] in set(clap_summary.get("ok", [])) and output_file.exists():
+                        try:
+                            clap_sidecar = json.loads(output_file.read_text())
+                            embedding = clap_sidecar.get("embedding", [])
+                            if len(embedding) != 512:
+                                print(f"  CLAP embedding for {Path(entry['audio_path']).name} has {len(embedding)} dims, expected 512 — skipping")
+                                output_file.unlink(missing_ok=True)
+                                continue
+                            conn.execute(
+                                "UPDATE tracks SET clap_embedding = ? WHERE file_path = ?",
+                                (json.dumps(embedding), entry["audio_path"]),
+                            )
+                        except Exception as e:
+                            print(f"  failed reading CLAP sidecar for {Path(entry['audio_path']).name}: {e}")
+                    if output_file.exists():
+                        output_file.unlink(missing_ok=True)
+
+                # Clean up CLAP manifest + summary
+                clap_manifest_path.unlink(missing_ok=True)
+                clap_summary_path.unlink(missing_ok=True)
+            finally:
+                # Clean up CLAP temp directory
+                import shutil
+                shutil.rmtree(clap_tmp, ignore_errors=True)
 
     conn.commit()
     return tracks
