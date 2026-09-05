@@ -1,0 +1,90 @@
+{
+  "seed": {
+    "id": 41,
+    "title": "Yeasayer - Tightrope",
+    "artist": "Dark Was the Night"
+  },
+  "playlist": [
+    {
+      "position": 1,
+      "id": 8,
+      "title": "My Rights Versus Yours",
+      "artist": "The New Pornographers",
+      "band": "Near",
+      "distance": 0.2465,
+      "reason": "Near CLAP pick (sched Near)"
+    },
+    {
+      "position": 2,
+      "id": 2,
+      "title": "Start A War",
+      "artist": "The National",
+      "band": "Mid",
+      "distance": 0.2889,
+      "reason": "Mid CLAP pick (sched Mid)"
+    },
+    {
+      "position": 3,
+      "id": 38,
+      "title": "Chicago",
+      "artist": "Sufjan Stevens",
+      "band": "Far",
+      "distance": 0.4254,
+      "reason": "Far CLAP pick (sched Far)"
+    },
+    {
+      "position": 4,
+      "id": 23,
+      "title": "Dirty Projectors & David Byrne - Knotty Pine",
+      "artist": "Dark Was the Night",
+      "band": "Mid",
+      "distance": 0.3794,
+      "reason": "Mid CLAP pick (sched Mid)"
+    },
+    {
+      "position": 5,
+      "id": 47,
+      "title": "Crystalised",
+      "artist": "The XX",
+      "band": "Near",
+      "distance": 0.3589,
+      "reason": "Near CLAP pick (sched Near)"
+    },
+    {
+      "position": 6,
+      "id": 30,
+      "title": "Angel From Montgomery",
+      "artist": "Bonnie Raitt",
+      "band": "Near",
+      "distance": 0.4043,
+      "reason": "Near CLAP pick (sched Near)"
+    },
+    {
+      "position": 7,
+      "id": 15,
+      "title": "Somebody More Like You",
+      "artist": "Nickel Creek",
+      "band": "Mid",
+      "distance": 0.2519,
+      "reason": "Mid CLAP pick (sched Mid)"
+    },
+    {
+      "position": 8,
+      "id": 29,
+      "title": "Suffer For Fashion",
+      "artist": "Of Montreal",
+      "band": "Far",
+      "distance": 0.4097,
+      "reason": "Far CLAP pick (sched Far)"
+    },
+    {
+      "position": 9,
+      "id": 14,
+      "title": "Chemicals",
+      "artist": "Of Montreal",
+      "band": "Mid",
+      "distance": 0.3734,
+      "reason": "Mid CLAP pick (sched Mid)"
+    }
+  ]
+}

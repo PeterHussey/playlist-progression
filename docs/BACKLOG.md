@@ -183,3 +183,48 @@ Far-only fallback chain. See `docs/comparison-clap-vs-essentia.md` for full
 results and interpretation. **Status:** ✅ Done (2026-09-04). Two code fixes
 required: `extract_clap.py` API (`load_audio` → `get_audio_embedding_from_filelist`)
 and `clap_compare.py` `pairwise_report` (independent CLAP means/stds).
+
+## 11. Blinded A/B playlist experiment (49-track library) ⬜
+
+Follow-up to §10. Ran on 2026-09-05 with `database/eval.db` (49 real-audio
+tracks, 49/49 CLAP coverage) and 3 seeds (Fake Palindromes, Cato, Yeasayer —
+Tightrope) × 2 samplers (clap default, essentia legacy) → 6 blinded playlists
+shuffled per seed. Full report: `docs/eval/blinded-2026-09-05/REPORT.md`.
+**Verdict: ship clap as default.** Auto metrics: tempo adherence 0.33–0.44
+(legacy) → 0.89–1.00 (clap); key adherence 0.78–0.89 → 0.89–1.00; forced-choice
+ear test 3/3 to clap. Two soft failures (Mumford "Sigh No More" at Far
+d=1.67 on s2; Bonnie Raitt "Angel From Montgomery" as constraint-driven
+false neighbor on s3) — not fixable, just known failure modes of any
+similarity+constraint system. Open issues identified:
+
+- **`scripts/eval_playlist.py` Spearman is meaningless on disjoint track
+  sets** ⬜ Open (metric bug). Script only correlates distances for tracks
+  that appear in *both* samplers' playlists; the two pick almost-disjoint
+  track sets, so n=2 or 0 and ρ is 1.0 by accident or undefined. Fix:
+  compare ranks over the *candidate pool* (all tracks in the DB) for both
+  samplers, not the chosen playlist. Alternative: drop the metric and rely
+  on within-sampler band-separation + forced choice.
+- **Band-distance is on different scales across samplers** ⬜ Open
+  (metric readability). Clap reports CLAP cosine (∈[0,1]), legacy reports
+  standardised Essentia z-Euclidean (unbounded). A within-sampler
+  comparison is fine (Near < Mid < Far in both worlds); a cross-sampler
+  distance comparison is misleading. Fix: either normalise (divide by mean
+  Near distance) or annotate "scale differs across samplers" in the
+  `eval_playlist.py` output.
+- **`tempo_drift_per_step=0.0` default produces a Far step that has no
+  ramp relationship to the Mid step before it** ⬜ Open (config test,
+  not code). On s2-A the Mumford "Sigh No More" Far step at d=1.67 was
+  the single largest CLAP distance in the playlist and read as random
+  rather than anchored. Test `--config` with `tempo_drift_per_step=0.05`
+  to see if the Far slot's distance shrinks. No code change yet —
+  ledger-accepted limitation.
+- **Small-library quantile guard unimplemented** ⬜ Open (quantile
+  stability). With N≈50, `near_quantile=0.10` picks a single track and
+  `mid_quantile=0.40` picks a tighter pool than the design assumes.
+  Reuse guard from spec §6. No code change yet — ledger-accepted.
+- **`playlist_summary.txt` not written on the clap path** ⬜ Open
+  (legacy parity gap). `generate_playlist.py --sampler clap` writes
+  only the JSON. `docs/eval/blinded-2026-09-05/EAR_TEST.md` was scored
+  by reading the JSON entries — a per-track summary would make
+  scoring more reliable. Either write a reduced summary for clap
+  or call out the gap in `--help`. Ledger-accepted.

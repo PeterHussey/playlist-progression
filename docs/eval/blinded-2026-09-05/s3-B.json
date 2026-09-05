@@ -1,0 +1,90 @@
+{
+  "seed": {
+    "id": 41,
+    "title": "Yeasayer - Tightrope",
+    "artist": "Dark Was the Night"
+  },
+  "playlist": [
+    {
+      "position": 1,
+      "id": 17,
+      "title": "Dear Sons And Daughters Of Hungry Ghosts",
+      "artist": "Wolf Parade",
+      "band": "Far",
+      "distance": 0.8291,
+      "reason": "Fallback: scheduled Near empty, global-nearest (actual Far) from seed"
+    },
+    {
+      "position": 2,
+      "id": 33,
+      "title": "Neighborhood #1 Tunnels",
+      "artist": "Arcade Fire",
+      "band": "Far",
+      "distance": 0.7241,
+      "reason": "Fallback: scheduled Mid empty, global-nearest (actual Far) from seed"
+    },
+    {
+      "position": 3,
+      "id": 13,
+      "title": "Wake Up",
+      "artist": "Arcade Fire",
+      "band": "Mid",
+      "distance": 0.5904,
+      "reason": "Fallback: scheduled Far empty, global-nearest (actual Mid) from seed"
+    },
+    {
+      "position": 4,
+      "id": 18,
+      "title": "Heartbreak",
+      "artist": "Celebration",
+      "band": "Far",
+      "distance": 0.8117,
+      "reason": "Fallback: scheduled Mid empty, global-nearest (actual Far) from seed"
+    },
+    {
+      "position": 5,
+      "id": 16,
+      "title": "Keep The Car Running",
+      "artist": "Arcade Fire",
+      "band": "Far",
+      "distance": 0.7371,
+      "reason": "Fallback: scheduled Near empty, global-nearest (actual Far) from seed"
+    },
+    {
+      "position": 6,
+      "id": 37,
+      "title": "Brainy",
+      "artist": "The National",
+      "band": "Far",
+      "distance": 0.7388,
+      "reason": "Fallback: scheduled Near empty, global-nearest (actual Far) from seed"
+    },
+    {
+      "position": 7,
+      "id": 4,
+      "title": "Love Changes Everything",
+      "artist": "Sam Phillips",
+      "band": "Far",
+      "distance": 0.7614,
+      "reason": "Fallback: scheduled Mid empty, global-nearest (actual Far) from seed"
+    },
+    {
+      "position": 8,
+      "id": 22,
+      "title": "Cato",
+      "artist": "Of Montreal",
+      "band": "Far",
+      "distance": 1.4385,
+      "reason": "Far band transition from seed"
+    },
+    {
+      "position": 9,
+      "id": 45,
+      "title": "Weed Party",
+      "artist": "Band Of Horses",
+      "band": "Far",
+      "distance": 0.8254,
+      "reason": "Fallback: scheduled Mid empty, global-nearest (actual Far) from seed"
+    }
+  ]
+}

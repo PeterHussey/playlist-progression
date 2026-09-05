@@ -1,0 +1,90 @@
+{
+  "seed": {
+    "id": 7,
+    "title": "Fake Palindromes",
+    "artist": "Andrew Bird"
+  },
+  "playlist": [
+    {
+      "position": 1,
+      "id": 13,
+      "title": "Wake Up",
+      "artist": "Arcade Fire",
+      "band": "Near",
+      "distance": 0.2517,
+      "reason": "Near CLAP pick (sched Near)"
+    },
+    {
+      "position": 2,
+      "id": 43,
+      "title": "My Mathematical Mind",
+      "artist": "Spoon",
+      "band": "Mid",
+      "distance": 0.2705,
+      "reason": "Mid CLAP pick (sched Mid)"
+    },
+    {
+      "position": 3,
+      "id": 17,
+      "title": "Dear Sons And Daughters Of Hungry Ghosts",
+      "artist": "Wolf Parade",
+      "band": "Far",
+      "distance": 0.4144,
+      "reason": "Far CLAP pick (sched Far)"
+    },
+    {
+      "position": 4,
+      "id": 8,
+      "title": "My Rights Versus Yours",
+      "artist": "The New Pornographers",
+      "band": "Mid",
+      "distance": 0.3309,
+      "reason": "Mid CLAP pick (sched Mid)"
+    },
+    {
+      "position": 5,
+      "id": 41,
+      "title": "Yeasayer - Tightrope",
+      "artist": "Dark Was the Night",
+      "band": "Near",
+      "distance": 0.2465,
+      "reason": "Near CLAP pick (sched Near)"
+    },
+    {
+      "position": 6,
+      "id": 23,
+      "title": "Dirty Projectors & David Byrne - Knotty Pine",
+      "artist": "Dark Was the Night",
+      "band": "Near",
+      "distance": 0.1828,
+      "reason": "Fallback: gates empty, global-nearest-by-CLAP (sched Near)"
+    },
+    {
+      "position": 7,
+      "id": 38,
+      "title": "Chicago",
+      "artist": "Sufjan Stevens",
+      "band": "Mid",
+      "distance": 0.3794,
+      "reason": "Mid CLAP pick (sched Mid)"
+    },
+    {
+      "position": 8,
+      "id": 12,
+      "title": "Everything you Need",
+      "artist": "Adem",
+      "band": "Far",
+      "distance": 0.4266,
+      "reason": "Far CLAP pick (sched Far)"
+    },
+    {
+      "position": 9,
+      "id": 2,
+      "title": "Start A War",
+      "artist": "The National",
+      "band": "Mid",
+      "distance": 0.2599,
+      "reason": "Mid CLAP pick (sched Mid)"
+    }
+  ]
+}

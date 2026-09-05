@@ -1,0 +1,14 @@
+# Blinded A/B mapping — 2026-09-05 CLAP-vs-Essentia experiment
+
+Keep this file separate from the JSONs themselves. The `A/B` filenames are
+random; the human scoring them reads only `s1-A.json` … `s3-B.json` and never
+this file. Unblinded at the end of the scoring pass.
+
+| Pair | A =        | B =          | Seed                 |
+|------|------------|--------------|----------------------|
+| s1   | clap       | essentia     | Fake Palindromes     |
+| s2   | essentia   | clap         | Cato                 |
+| s3   | clap       | essentia     | Yeasayer - Tightrope |
+
+Forced-choice polarity: "which would you keep listening to?" is unblinded after
+both axes (auto metrics + ear test) are collected.

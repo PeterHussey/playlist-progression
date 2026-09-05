@@ -1,0 +1,90 @@
+{
+  "seed": {
+    "id": 7,
+    "title": "Fake Palindromes",
+    "artist": "Andrew Bird"
+  },
+  "playlist": [
+    {
+      "position": 1,
+      "id": 21,
+      "title": "Ringing In my Ear",
+      "artist": "Adem",
+      "band": "Mid",
+      "distance": 0.6957,
+      "reason": "Fallback: scheduled Near empty, global-nearest (actual Mid) from seed"
+    },
+    {
+      "position": 2,
+      "id": 5,
+      "title": "Trouble",
+      "artist": "Ray LaMontagne",
+      "band": "Mid",
+      "distance": 0.6098,
+      "reason": "Mid band transition from seed"
+    },
+    {
+      "position": 3,
+      "id": 8,
+      "title": "My Rights Versus Yours",
+      "artist": "The New Pornographers",
+      "band": "Mid",
+      "distance": 0.6387,
+      "reason": "Fallback: scheduled Far empty, global-nearest (actual Mid) from seed"
+    },
+    {
+      "position": 4,
+      "id": 48,
+      "title": "Pancho And Lefty",
+      "artist": "Emmylou Harris",
+      "band": "Mid",
+      "distance": 0.5533,
+      "reason": "Mid band transition from seed"
+    },
+    {
+      "position": 5,
+      "id": 33,
+      "title": "Neighborhood #1 Tunnels",
+      "artist": "Arcade Fire",
+      "band": "Far",
+      "distance": 0.7986,
+      "reason": "Fallback: scheduled Near empty, global-nearest (actual Far) from seed"
+    },
+    {
+      "position": 6,
+      "id": 13,
+      "title": "Wake Up",
+      "artist": "Arcade Fire",
+      "band": "Mid",
+      "distance": 0.5904,
+      "reason": "Fallback: scheduled Near empty, global-nearest (actual Mid) from seed"
+    },
+    {
+      "position": 7,
+      "id": 18,
+      "title": "Heartbreak",
+      "artist": "Celebration",
+      "band": "Far",
+      "distance": 0.8117,
+      "reason": "Fallback: scheduled Mid empty, global-nearest (actual Far) from seed"
+    },
+    {
+      "position": 8,
+      "id": 49,
+      "title": "Bon Iver - Brackett, Wi",
+      "artist": "Dark Was the Night",
+      "band": "Far",
+      "distance": 1.3304,
+      "reason": "Far band transition from seed"
+    },
+    {
+      "position": 9,
+      "id": 10,
+      "title": "Infinity",
+      "artist": "The XX",
+      "band": "Mid",
+      "distance": 0.6035,
+      "reason": "Mid band transition from seed"
+    }
+  ]
+}

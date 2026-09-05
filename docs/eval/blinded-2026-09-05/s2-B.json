@@ -1,0 +1,90 @@
+{
+  "seed": {
+    "id": 22,
+    "title": "Cato",
+    "artist": "Of Montreal"
+  },
+  "playlist": [
+    {
+      "position": 1,
+      "id": 6,
+      "title": "Ocean Of Noise",
+      "artist": "Arcade Fire",
+      "band": "Near",
+      "distance": 0.3491,
+      "reason": "Near CLAP pick (sched Near)"
+    },
+    {
+      "position": 2,
+      "id": 19,
+      "title": "Tomorrow Is A Long Time",
+      "artist": "Nickel Creek",
+      "band": "Near",
+      "distance": 0.4960,
+      "reason": "Near CLAP pick (sched Mid)"
+    },
+    {
+      "position": 3,
+      "id": 15,
+      "title": "Somebody More Like You",
+      "artist": "Nickel Creek",
+      "band": "Far",
+      "distance": 0.1675,
+      "reason": "Fallback: gates empty, global-nearest-by-CLAP (sched Far)"
+    },
+    {
+      "position": 4,
+      "id": 44,
+      "title": "Hope There's Someone",
+      "artist": "Antony & the Johnsons",
+      "band": "Mid",
+      "distance": 0.2290,
+      "reason": "Mid CLAP pick (sched Mid)"
+    },
+    {
+      "position": 5,
+      "id": 30,
+      "title": "Angel From Montgomery",
+      "artist": "Bonnie Raitt",
+      "band": "Near",
+      "distance": 0.2998,
+      "reason": "Near CLAP pick (sched Near)"
+    },
+    {
+      "position": 6,
+      "id": 21,
+      "title": "Ringing In my Ear",
+      "artist": "Adem",
+      "band": "Near",
+      "distance": 0.2053,
+      "reason": "Near CLAP pick (sched Near)"
+    },
+    {
+      "position": 7,
+      "id": 26,
+      "title": "Sigh No More",
+      "artist": "Mumford & Sons",
+      "band": "Mid",
+      "distance": 0.2711,
+      "reason": "Mid CLAP pick (sched Mid)"
+    },
+    {
+      "position": 8,
+      "id": 11,
+      "title": "Young Folls",
+      "artist": "Peter Bjorn And John",
+      "band": "Far",
+      "distance": 0.4034,
+      "reason": "Far CLAP pick (sched Far)"
+    },
+    {
+      "position": 9,
+      "id": 12,
+      "title": "Everything you Need",
+      "artist": "Adem",
+      "band": "Mid",
+      "distance": 0.3733,
+      "reason": "Mid CLAP pick (sched Mid)"
+    }
+  ]
+}

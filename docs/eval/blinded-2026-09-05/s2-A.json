@@ -1,0 +1,90 @@
+{
+  "seed": {
+    "id": 22,
+    "title": "Cato",
+    "artist": "Of Montreal"
+  },
+  "playlist": [
+    {
+      "position": 1,
+      "id": 45,
+      "title": "Weed Party",
+      "artist": "Band Of Horses",
+      "band": "Far",
+      "distance": 0.8254,
+      "reason": "Fallback: scheduled Near empty, global-nearest (actual Far) from seed"
+    },
+    {
+      "position": 2,
+      "id": 29,
+      "title": "Suffer For Fashion",
+      "artist": "Of Montreal",
+      "band": "Far",
+      "distance": 0.8135,
+      "reason": "Fallback: scheduled Mid empty, global-nearest (actual Far) from seed"
+    },
+    {
+      "position": 3,
+      "id": 26,
+      "title": "Sigh No More",
+      "artist": "Mumford & Sons",
+      "band": "Far",
+      "distance": 1.6682,
+      "reason": "Far band transition from seed"
+    },
+    {
+      "position": 4,
+      "id": 8,
+      "title": "My Rights Versus Yours",
+      "artist": "The New Pornographers",
+      "band": "Far",
+      "distance": 1.0503,
+      "reason": "Fallback: scheduled Mid empty, global-nearest (actual Far) from seed"
+    },
+    {
+      "position": 5,
+      "id": 48,
+      "title": "Pancho And Lefty",
+      "artist": "Emmylou Harris",
+      "band": "Mid",
+      "distance": 0.5533,
+      "reason": "Fallback: scheduled Near empty, global-nearest (actual Mid) from seed"
+    },
+    {
+      "position": 6,
+      "id": 33,
+      "title": "Neighborhood #1 Tunnels",
+      "artist": "Arcade Fire",
+      "band": "Far",
+      "distance": 0.7986,
+      "reason": "Fallback: scheduled Near empty, global-nearest (actual Far) from seed"
+    },
+    {
+      "position": 7,
+      "id": 13,
+      "title": "Wake Up",
+      "artist": "Arcade Fire",
+      "band": "Mid",
+      "distance": 0.5904,
+      "reason": "Mid band transition from seed"
+    },
+    {
+      "position": 8,
+      "id": 18,
+      "title": "Heartbreak",
+      "artist": "Celebration",
+      "band": "Far",
+      "distance": 0.8117,
+      "reason": "Fallback: scheduled Far empty, global-nearest (actual Far) from seed"
+    },
+    {
+      "position": 9,
+      "id": 16,
+      "title": "Keep The Car Running",
+      "artist": "Arcade Fire",
+      "band": "Far",
+      "distance": 0.7371,
+      "reason": "Fallback: scheduled Mid empty, global-nearest (actual Far) from seed"
+    }
+  ]
+}
