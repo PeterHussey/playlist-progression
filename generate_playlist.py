@@ -4,6 +4,7 @@
 Usage:
     python generate_playlist.py [--db PATH] [--seed-id ID] [--limit N]
                                 [--hold-axis AXIS]
+                                [--sampler clap|essentia] [--config PATH]
                                 [--output JSON] [--summary TXT]
 """
 import argparse
@@ -41,6 +42,10 @@ def parse_args(argv=None) -> argparse.Namespace:
                         help=f"Playlist JSON output (default: {DEFAULT_OUTPUT})")
     parser.add_argument("--summary", type=Path, default=DEFAULT_SUMMARY,
                         help=f"Text summary output (default: {DEFAULT_SUMMARY})")
+    parser.add_argument("--sampler", choices=["clap", "essentia"], default="clap",
+                        help="Playlist sampler backend (default: clap)")
+    parser.add_argument("--config", type=Path, default=None,
+                        help="JSON config file for clap sampler (optional)")
     return parser.parse_args(argv)
 
 
@@ -112,6 +117,38 @@ def main(argv=None):
         seed = next((t for t, _ in tracks if t.id == 17), None)
         if seed is None:
             seed = max(tracks, key=lambda item: item[0].id)[0]
+    # -- CLAP sampler path (new default) --
+    if args.sampler == "clap":
+        from src.recommender.playlist_sampler import PlaylistSampler
+        config = {
+            "near_quantile": 0.10,
+            "mid_quantile": 0.40,
+            "mood_box": {},
+            "key_max_steps": 2,
+            "tempo_max_step_pct": 0.10,
+            "tempo_drift_per_step": 0.0,
+            "band_schedule": ["Near", "Mid", "Far", "Mid", "Near"],
+            "allow_missing_clap": False,
+            "allow_missing_mood": False,
+        }
+        if args.config is not None:
+            import json as _json
+            config.update(_json.loads(args.config.read_text()))
+        sampler = PlaylistSampler(config)
+        sampler.load_library([t for t, _ in tracks])
+        clapped_entries = sampler.generate(seed, args.limit)
+        playlist_entries = [
+            make_entry(
+                position=e["position"], track_id=e["track_id"],
+                title=e["title"], artist=e["artist"],
+                band=e["band"], distance=e["distance"],
+                reason=e["reason"],
+            )
+            for e in clapped_entries
+        ]
+        write_playlist(args.output, seed, playlist_entries)
+        print(f"\nPlaylist JSON: {args.output}")
+        return
     visited = {seed.id}
     current = seed
     playlist_entries = []

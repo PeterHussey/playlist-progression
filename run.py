@@ -117,6 +117,18 @@ def main() -> None:
         default=None,
         help="Directory for mood classification models (passed to batch worker)",
     )
+    parser.add_argument(
+        "--sampler",
+        choices=["clap", "essentia"],
+        default="clap",
+        help="Playlist sampler backend (default: clap)",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="JSON config file for clap sampler (optional)",
+    )
     args = parser.parse_args()
 
     music_dir = Path(args.music_dir)
@@ -155,7 +167,10 @@ def main() -> None:
                 "--limit", str(args.limit),
                 "--output", args.output or "branch_playlist.json",
                 "--hold-axis", args.hold_axis,
+                "--sampler", args.sampler,
             ]
+            if args.config:
+                sys.argv.extend(["--config", args.config])
             generate_playlist_main()
         except Exception as e:
             print(f"Error generating playlist: {e}", file=sys.stderr)

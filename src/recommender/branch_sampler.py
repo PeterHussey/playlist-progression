@@ -1,4 +1,4 @@
-"""Branch sampler — distance-band playlist selection.
+"""Branch sampler — distance-band playlist selection (legacy path; prefer PlaylistSampler for new work).
 
 Selects successive tracks from an audio library using standardised Euclidean
 distance across descriptor axes, with three bands (Near/Mid/Far-but-directed)

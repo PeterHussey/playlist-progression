@@ -13,6 +13,9 @@ DB_INIT = database/init.db
 # Default music directory (override with: make run MUSIC_DIR=/path/to/music)
 MUSIC_DIR ?= .
 
+# Sampler backend for playlist target (override with: make playlist SAMPLER=essentia)
+SAMPLER ?= clap
+
 # ── Targets ────────────────────────────────────────────────────
 
 
@@ -33,7 +36,7 @@ run: init-db
 ## Run ingestion + generate playlist (SEED="substring" for seed title match)
 playlist: init-db
 	@echo "==> Running ingestion + playlist generation..."
-	python3 run.py $(MUSIC_DIR) $(DB_FILE) --generate-playlist --seed-title "$(SEED)"
+	python3 run.py $(MUSIC_DIR) $(DB_FILE) --generate-playlist --seed-title "$(SEED)" --sampler "$(SAMPLER)"
 
 ## Remove temp files
 clean:

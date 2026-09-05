@@ -86,7 +86,8 @@ def test_generate_playlist_fallback_labels_actual_band(tmp_path, monkeypatch):
     summ = tmp_path / "summ.txt"
     generate_playlist.main(["--db", str(db), "--seed-id", "1",
                             "--limit", "1", "--output", str(out),
-                            "--summary", str(summ)])
+                            "--summary", str(summ),
+                            "--sampler", "essentia"])
     data = json.loads(out.read_text())
     assert len(data["playlist"]) == 1
     entry = data["playlist"][0]

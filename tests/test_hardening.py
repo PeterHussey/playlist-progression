@@ -164,7 +164,8 @@ def test_playlist_cli_seed_and_outputs(tmp_path, monkeypatch, capsys):
     summ = tmp_path / "summ.txt"
     generate_playlist.main(["--db", str(db), "--seed-id", "2",
                             "--limit", "2", "--output", str(out),
-                            "--summary", str(summ)])
+                            "--summary", str(summ),
+                            "--sampler", "essentia"])
     data = json.loads(out.read_text())
     assert data["seed"]["id"] == 2
     assert data["seed"]["title"] == "Beta"
