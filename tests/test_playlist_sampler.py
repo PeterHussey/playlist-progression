@@ -63,6 +63,41 @@ def _sidecar(bpm=120.0):
     }
 
 
+def test_tempo_drift_per_step():
+    """Tempo drift centres the window on drifted seed BPM, not raw seed BPM."""
+    # Seed bpm=100, drift=0.5 → step 0 centre=100, step 1 centre=150.
+    # A bpm=105 passes step 0 window (105/100 ≤ 1.10), fails step 1 (|105-150|/150 > 0.10).
+    # B bpm=150 fails step 0 (150/100 > 1.10), passes step 1 (|150-150|/150 = 0 ≤ 0.10).
+    # B has CLAP slightly closer to seed than A, so without drift B would always win.
+    seed = _mk(1, [1.0, 0.0], bpm=100.0)
+    a = _mk(2, [0.99, 0.01], bpm=105.0)   # CLAP a bit less close
+    b = _mk(3, [0.999, 0.001], bpm=150.0)  # CLAP closest
+    cfg = _config(band_schedule=["Near", "Near"], tempo_drift_per_step=0.5)
+    s = PlaylistSampler(cfg)
+    s.load_library([seed, a, b])
+    entries = s.generate(seed, limit=2)
+    assert len(entries) == 2
+    # Step 0: centre=100 → A passes, B fails → A wins
+    assert entries[0]["track_id"] == 2
+    # Step 1: centre=150 → B passes (within window) → B should be picked
+    assert entries[1]["track_id"] == 3
+
+
+def test_final_fallback_global_nearest_by_clap():
+    """When all candidates are blocked by key/tempo (unrelaxable), fallback picks global nearest."""
+    # Seed: C major bpm=120. Candidate: F# major (12 steps = block) bpm=200 (tempo also fails).
+    # Key gate blocks F# major regardless of mood relax → fallback should still return 1 entry.
+    seed = _mk(1, [1.0, 0.0], bpm=120.0, key="C", mode="major")
+    blocked = _mk(2, [0.99, 0.01], bpm=200.0, key="F#", mode="major")
+    cfg = _config(band_schedule=["Near"], mood_box={})
+    s = PlaylistSampler(cfg)
+    s.load_library([seed, blocked])
+    entries = s.generate(seed, limit=1)
+    assert len(entries) == 1
+    assert entries[0]["track_id"] == 2
+    assert "Fallback" in entries[0]["reason"]
+
+
 def test_clap_embedding_loaded_from_db(tmp_path, monkeypatch):
     """clap_embedding must be deserialized from DB so clap sampler works."""
     monkeypatch.chdir(tmp_path)

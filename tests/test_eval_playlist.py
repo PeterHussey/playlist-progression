@@ -1,4 +1,6 @@
 """Tests for eval metric helpers."""
+import json
+import sqlite3
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -22,3 +24,44 @@ def test_anchor_adherence_counts_violations():
             {"mood_ok": True, "key_ok": False, "tempo_ok": True}]
     out = ev.anchor_adherence(meta)
     assert out == {"mood": 1.0, "key": 0.5, "tempo": 1.0}
+
+
+def _sidecar(bpm=120.0, key="C", mode="major"):
+    return {
+        "version": "1.1", "duration_sec": 200.0,
+        "tempo": {"bpm": bpm, "confidence": 0.9},
+        "key": {"key": key, "mode": mode, "scale": f"{key} {mode}", "confidence": 2.0},
+        "mood": {"sad": 0.8},
+    }
+
+
+def test_main_runs_both_paths(tmp_path, capsys):
+    """eval main() prints legacy and clap sections without error."""
+    db = tmp_path / "eval.db"
+    conn = sqlite3.connect(str(db))
+    conn.execute(
+        """CREATE TABLE tracks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_path TEXT UNIQUE NOT NULL, title TEXT, artist TEXT,
+            duration_sec REAL, feature_json TEXT, clap_embedding TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"""
+    )
+    for fp, title, bpm, clap, key, mode in [
+        ("/m/seed.mp3", "Seed", 120.0, [1.0, 0.0], "C", "major"),
+        ("/m/a.mp3", "Alpha", 125.0, [0.9, 0.1], "G", "major"),
+        ("/m/b.mp3", "Beta", 130.0, [0.5, 0.5], "D", "major"),
+        ("/m/c.mp3", "Gamma", 120.0, None, "C", "major"),
+    ]:
+        conn.execute(
+            "INSERT INTO tracks (file_path, title, duration_sec, feature_json, clap_embedding)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (fp, title, 200.0, json.dumps(_sidecar(bpm, key, mode)),
+             json.dumps(clap) if clap is not None else None),
+        )
+    conn.commit()
+    conn.close()
+
+    ev.main(["--db", str(db), "--seed-title", "Seed", "--limit", "2"])
+    out = capsys.readouterr().out
+    assert "Legacy" in out
+    assert "CLAP" in out

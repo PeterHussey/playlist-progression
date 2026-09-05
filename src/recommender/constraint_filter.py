@@ -96,12 +96,17 @@ class ConstraintFilter:
         self.tempo_max_step_pct: float = float(config.get("tempo_max_step_pct", 0.10))
         self.allow_missing_mood: bool = bool(config.get("allow_missing_mood", False))
 
-    def filter(self, seed: Track, candidates: list[Track]) -> list[Track]:
+    def filter(self, seed: Track, candidates: list[Track], centre_bpm: float | None = None) -> list[Track]:
+        """Filter candidates through mood/key/tempo gates.
+
+        penalise-verdict tracks sort after allow (soft demotion).
+        """
         seed_raw = _parsed_sidecar(seed.feature_json)
         seed_tempo = float((seed_raw.get("tempo") or {}).get("bpm", 0.0) or 0.0)
         seed_key = seed_raw.get("key") or {}
         seed_slot = key_slot(seed_key.get("key"), seed_key.get("mode") or seed_key.get("scale"))
         out: list[Track] = []
+        verdicts: list[str] = []
         for cand in candidates:
             raw = _parsed_sidecar(cand.feature_json)
             mood = raw.get("mood") or {}
@@ -111,10 +116,15 @@ class ConstraintFilter:
                 continue
             ck = raw.get("key") or {}
             steps = key_steps(seed_slot, key_slot(ck.get("key"), ck.get("mode") or ck.get("scale")))
-            if key_verdict(steps, self.key_max_steps) == "block":
+            v = key_verdict(steps, self.key_max_steps)
+            if v == "block":
                 continue
             cand_bpm = float((raw.get("tempo") or {}).get("bpm", 0.0) or 0.0)
-            if seed_tempo > 0 and cand_bpm > 0 and not tempo_ok(seed_tempo, cand_bpm, self.tempo_max_step_pct):
+            if seed_tempo > 0 and cand_bpm > 0 and not tempo_ok(seed_tempo, cand_bpm, self.tempo_max_step_pct, centre_bpm=centre_bpm):
                 continue
             out.append(cand)
-        return out
+            verdicts.append(v)
+        # Stable-sort: allow before penalise (soft demotion)
+        paired = list(zip(out, verdicts, range(len(out))))
+        paired.sort(key=lambda t: (0 if t[1] == "allow" else 1, t[2]))
+        return [t for t, _, _ in paired]

@@ -1,6 +1,5 @@
 """CLAP-rank + Essentia-gate playlist sampler (new default path)."""
 from __future__ import annotations
-import json
 from .track import Track
 from .clap_similarity import rank_by_similarity, partition_quantile_bands
 from .constraint_filter import ConstraintFilter, relax_mood_box
@@ -43,25 +42,68 @@ class PlaylistSampler:
         current = seed
         entries: list[dict] = []
         mood_box = dict(self.filter.mood_box)
+        # Capture seed BPM for tempo drift (§5)
+        from .constraint_filter import _parsed_sidecar
+        seed0_raw = _parsed_sidecar(seed.feature_json)
+        seed0_bpm = float((seed0_raw.get("tempo") or {}).get("bpm", 0.0) or 0.0)
         for step in range(limit):
             band = self.schedule[step % len(self.schedule)]
             candidates = [t for t in self._by_id.values() if t.id not in visited]
             candidates = self._usable(candidates)
-            survivors = self.filter.filter(current, candidates)
+            # Compute drifted centre BPM for this step
+            centre_bpm: float | None = None
+            if seed0_bpm > 0 and self.drift != 0.0:
+                centre_bpm = seed0_bpm * ((1.0 + self.drift) ** step)
+            survivors = self.filter.filter(current, candidates, centre_bpm=centre_bpm)
             relaxed = 0
             box = dict(mood_box)
             while not survivors and box and relaxed < 3:
                 box = relax_mood_box(box)
                 relaxed += 1
                 f = ConstraintFilter({**self.filter.__dict__, "mood_box": box})
-                survivors = f.filter(current, candidates)
+                survivors = f.filter(current, candidates, centre_bpm=centre_bpm)
             if not survivors:
+                if candidates:
+                    # §6 fallback: global-nearest-by-CLAP ignoring gates
+                    cur_vec = self._norm.get(current.id)
+                    if cur_vec is not None:
+                        all_ranked = rank_by_similarity(
+                            cur_vec,
+                            [(t.id, self._norm[t.id]) for t in candidates if t.id in self._norm])
+                        if all_ranked:
+                            pick_id, sim = all_ranked[0]
+                            nxt = self._by_id[pick_id]
+                            entries.append({"position": step + 1, "track_id": nxt.id,
+                                            "title": nxt.get_title(), "artist": nxt.get_artist(),
+                                            "band": band,
+                                            "distance": round(1.0 - sim, 4),
+                                            "reason": f"Fallback: gates empty, global-nearest-by-CLAP (sched {band})"})
+                            visited.add(nxt.id)
+                            current = nxt
+                            continue
                 break
             seed_vec = self._norm.get(current.id) or (list(current.clap_embedding) if current.clap_embedding else None)
-            if seed_vec is None:
-                break
-            ranked = rank_by_similarity(seed_vec, [(t.id, self._norm[t.id]) for t in survivors if t.id in self._norm])
+            ranked: list[tuple[int, float]] = []
+            if seed_vec is not None:
+                ranked = rank_by_similarity(seed_vec, [(t.id, self._norm[t.id]) for t in survivors if t.id in self._norm])
             if not ranked:
+                if candidates:
+                    cur_vec = self._norm.get(current.id)
+                    if cur_vec is not None:
+                        all_ranked = rank_by_similarity(
+                            cur_vec,
+                            [(t.id, self._norm[t.id]) for t in candidates if t.id in self._norm])
+                        if all_ranked:
+                            pick_id, sim = all_ranked[0]
+                            nxt = self._by_id[pick_id]
+                            entries.append({"position": step + 1, "track_id": nxt.id,
+                                            "title": nxt.get_title(), "artist": nxt.get_artist(),
+                                            "band": band,
+                                            "distance": round(1.0 - sim, 4),
+                                            "reason": f"Fallback: gates empty, global-nearest-by-CLAP (sched {band})"})
+                            visited.add(nxt.id)
+                            current = nxt
+                            continue
                 break
             bands = partition_quantile_bands(ranked, self.near_q, self.mid_q)
             pick = None
@@ -75,7 +117,17 @@ class PlaylistSampler:
                         pick, actual = bands[fb][0][0], fb.capitalize()
                         break
             if pick is None:
-                break
+                # §6 fallback: no band matched, pick global nearest
+                pick_id, sim = ranked[0]
+                nxt = self._by_id[pick_id]
+                entries.append({"position": step + 1, "track_id": nxt.id,
+                                "title": nxt.get_title(), "artist": nxt.get_artist(),
+                                "band": band,
+                                "distance": round(1.0 - sim, 4),
+                                "reason": f"Fallback: gates empty, global-nearest-by-CLAP (sched {band})"})
+                visited.add(nxt.id)
+                current = nxt
+                continue
             nxt = self._by_id[pick]
             sim = next(s for i, s in ranked if i == pick)
             reason = f"{actual} CLAP pick (sched {band})" + (f", mood relaxed x{relaxed}" if relaxed else "")

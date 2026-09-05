@@ -137,7 +137,13 @@ def main(argv=None):
             import json as _json
             config.update(_json.loads(args.config.read_text()))
         sampler = PlaylistSampler(config)
-        sampler.load_library([t for t, _ in tracks])
+        stats = sampler.load_library([t for t, _ in tracks])
+        # Clap path intentionally skips playlist_summary.txt (legacy parity gap, see plan §6)
+        if stats["clap_coverage"] == 0:
+            print("Error: --sampler clap needs CLAP embeddings but database has none "
+                  "-- re-run ingestion with --clap, or use --sampler essentia",
+                  file=sys.stderr)
+            sys.exit(1)
         clapped_entries = sampler.generate(seed, args.limit)
         playlist_entries = [
             make_entry(
