@@ -12,3 +12,8 @@ tinytag>=1.10.0
 
 # TensorFlow runtime (required by essentia-tensorflow for model inference)
 tensorflow>=2.10.0
+
+# Audio DSP for CLAP fusion embeddings (laion-clap's fusion path computes
+# mel spectrograms via torchaudio; without it every CLAP extraction fails).
+# laion-clap itself stays a separate optional install (see AGENTS.md).
+torchaudio

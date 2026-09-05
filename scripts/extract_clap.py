@@ -42,8 +42,8 @@ def _extract_one(audio_path: str, output_path: str) -> None:
 
     # Load model
     try:
-        model = laion_clap.CLAP_Module(enable_fusion=False)
-        model.load_ckpt()  # loads default checkpoint
+        model = laion_clap.CLAP_Module(enable_fusion=True)
+        model.load_ckpt()  # loads default checkpoint (fusion checkpoint when enable_fusion=True)
     except Exception as e:
         raise
 
@@ -110,7 +110,7 @@ def run_clap_batch_manifest(manifest_path: str) -> dict:
 
     manifest = json.loads(Path(manifest_path).read_text())
     try:
-        model = laion_clap.CLAP_Module(enable_fusion=False)
+        model = laion_clap.CLAP_Module(enable_fusion=True)
         model.load_ckpt()
     except Exception as e:
         print(f"Error loading CLAP model: {e}", file=sys.stderr)

@@ -93,3 +93,39 @@ def test_clap_batch_cli_entry_point(tmp_path, monkeypatch):
     summary = json.loads(summary_file.read_text())
     assert summary["ok"] == [str(good_out)]
     assert len(summary["failed"]) == 0
+
+
+def test_clap_module_initialized_with_enable_fusion(tmp_path, monkeypatch):
+    """Verify CLAP_Module is initialized with enable_fusion=True for variable-length audio."""
+    calls = []
+    fake = types.ModuleType("laion_clap")
+
+    class RecordingFakeCLAP:
+        def __init__(self, *a, **k):
+            calls.append((a, k))
+
+        def load_ckpt(self, *a, **k):
+            pass
+
+        def get_audio_embedding_from_filelist(self, x, use_tensor=False):
+            import numpy as np
+            return np.full((len(x), 512), 0.5, dtype=float)
+
+    fake.CLAP_Module = RecordingFakeCLAP
+    monkeypatch.setitem(sys.modules, "laion_clap", fake)
+
+    from scripts.extract_clap import _extract_one, run_clap_batch_manifest
+
+    good_audio = tmp_path / "a.mp3"
+    good_audio.touch()
+    out1 = tmp_path / "out1.json"
+    _extract_one(str(good_audio), str(out1))
+    assert len(calls) == 1
+    assert calls[0][1].get("enable_fusion") is True
+
+    manifest = tmp_path / "m.json"
+    manifest.write_text(json.dumps([{"audio_path": str(good_audio), "output_path": str(tmp_path / "out2.json")}]))
+    run_clap_batch_manifest(str(manifest))
+    assert len(calls) == 2
+    assert calls[1][1].get("enable_fusion") is True
+
