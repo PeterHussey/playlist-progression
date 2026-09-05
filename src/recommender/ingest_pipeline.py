@@ -301,7 +301,8 @@ def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, for
         models_dir: directory for mood classification models (passed to batch worker)
 
     Returns:
-        list of Track objects that were processed
+        list of (Track, status) tuples, where status is "skipped",
+        "re-extracted", or "processed" (same shape as the batch path)
     """
     music_dir = music_dir.resolve()
     if not music_dir.is_dir():
@@ -322,11 +323,11 @@ def run_pipeline(music_dir: Path, db_path: Path, extract_clap: bool = False, for
         if batch:
             return _run_pipeline_batch(conn, audio_files, db_path, extract_clap=extract_clap, force=force, timeout=timeout, dsp_timeout=dsp_timeout, mood_timeout=mood_timeout, no_mood=no_mood, models_dir=models_dir)
 
-        tracks: list[Track] = []
+        tracks: list[tuple[Track, str]] = []
         for audio_file in audio_files:
             try:
                 track, status = process_file(conn, audio_file, extract_clap_flag=extract_clap, force=force, timeout=timeout, dsp_timeout=dsp_timeout, mood_timeout=mood_timeout, no_mood=no_mood)
-                tracks.append(track)
+                tracks.append((track, status))
                 print(f"  {status}: {audio_file.name} (id={track.get_id()})")
             except Exception as e:
                 print(f"  failed: {audio_file.name} — {e}")
@@ -535,25 +536,38 @@ def _run_pipeline_batch(
                     print(f"  batch CLAP worker failed: {e} — leaving clap_embedding NULL")
                     clap_summary = {"ok": [], "failed": []}
 
-                # Store successful CLAP embeddings
+                # Store successful CLAP embeddings (failures are logged, never silent)
+                ok_set = set(clap_summary.get("ok", []))
+                fail_reasons = {
+                    f.get("output"): f.get("error", "?")
+                    for f in clap_summary.get("failed", [])
+                    if isinstance(f, dict)
+                }
+                n_clap_ok = 0
                 for entry in clap_manifest_entries:
                     output_file = Path(entry["output_path"])
-                    if entry["output_path"] in set(clap_summary.get("ok", [])) and output_file.exists():
+                    track_name = Path(entry["audio_path"]).name
+                    if entry["output_path"] in ok_set and output_file.exists():
                         try:
                             clap_sidecar = json.loads(output_file.read_text())
                             embedding = clap_sidecar.get("embedding", [])
                             if len(embedding) != 512:
-                                print(f"  CLAP embedding for {Path(entry['audio_path']).name} has {len(embedding)} dims, expected 512 — skipping")
+                                print(f"  CLAP failed for {track_name} — embedding has {len(embedding)} dims, expected 512")
                                 output_file.unlink(missing_ok=True)
                                 continue
                             conn.execute(
                                 "UPDATE tracks SET clap_embedding = ? WHERE file_path = ?",
                                 (json.dumps(embedding), entry["audio_path"]),
                             )
+                            n_clap_ok += 1
                         except Exception as e:
-                            print(f"  failed reading CLAP sidecar for {Path(entry['audio_path']).name}: {e}")
+                            print(f"  CLAP failed for {track_name} — {e}")
+                    else:
+                        reason = fail_reasons.get(entry["output_path"], "no sidecar produced")
+                        print(f"  CLAP failed for {track_name} — {reason}")
                     if output_file.exists():
                         output_file.unlink(missing_ok=True)
+                print(f"  CLAP batch: {n_clap_ok} stored, {len(clap_manifest_entries) - n_clap_ok} failed")
 
                 # Clean up CLAP manifest + summary
                 clap_manifest_path.unlink(missing_ok=True)

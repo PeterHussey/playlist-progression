@@ -244,6 +244,35 @@ def test_prefetch_failure_warns_not_fails(tmp_path, monkeypatch):
     assert isinstance(tracks, list)
 
 
+def test_run_pipeline_nonbatch_returns_track_status_tuples(tmp_path, monkeypatch):
+    """Non-batch run_pipeline returns (Track, status) tuples like the batch path.
+
+    Regression: the non-batch path returned bare Track objects, crashing
+    run.py's `for track, _ in tracks` unpacking with TypeError.
+    """
+    monkeypatch.chdir(tmp_path)
+    from src.recommender.track import Track
+    from src.recommender.ingest_pipeline import run_pipeline
+
+    music = tmp_path / "music"
+    music.mkdir()
+    (music / "test.mp3").write_bytes(b"\x00" * 100)
+
+    db = tmp_path / "test.db"
+
+    def fake_process_file(conn, audio_file, **kwargs):
+        return Track(id=1, file_path=audio_file), "processed"
+
+    with patch("src.recommender.ingest_pipeline.ensure_mood_models"):
+        with patch("src.recommender.ingest_pipeline.process_file", side_effect=fake_process_file):
+            tracks = run_pipeline(music, db, no_mood=True)
+
+    assert len(tracks) == 1
+    track, status = tracks[0]  # must unpack without TypeError
+    assert isinstance(track, Track)
+    assert status == "processed"
+
+
 # ── run.py --timeout validation ──────────────────────────────────────
 
 

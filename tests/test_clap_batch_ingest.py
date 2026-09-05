@@ -133,3 +133,30 @@ def test_batch_clap_populates_existing_track_no_churn(tmp_path, monkeypatch):
     statuses = [s for _, s in tracks]
     assert statuses == ["skipped"], f"Expected ['skipped'], got {statuses}"
     conn.close()
+
+
+def test_batch_clap_failures_are_logged(tmp_path, monkeypatch, capsys):
+    """Failed CLAP entries must be reported on stdout, never silently skipped."""
+    monkeypatch.chdir(tmp_path)
+    from src.recommender import ingest_pipeline as ip
+    db = tmp_path / "t.db"
+    _make_db(db)
+    audio = tmp_path / "song.mp3"
+    audio.touch()
+    conn = sqlite3.connect(str(db))
+
+    def _fail_all_clap(manifest_path, summary_path, **kwargs):
+        manifest = json.loads(manifest_path.read_text())
+        summary = {"ok": [], "failed": [
+            {"output": e["output_path"], "error": "boom"} for e in manifest
+        ]}
+        summary_path.write_text(json.dumps(summary))
+        return summary
+
+    with patch.object(ip, "run_batch", side_effect=_fake_run_batch), \
+         patch.object(ip, "run_clap_batch", side_effect=_fail_all_clap), \
+         patch.object(ip, "read_metadata", return_value=("Song", "Artist")):
+        ip._run_pipeline_batch(conn, [audio], db, extract_clap=True, force=True, no_mood=True)
+    out = capsys.readouterr().out
+    assert "boom" in out, f"CLAP failure reason must be logged, got: {out!r}"
+    conn.close()
