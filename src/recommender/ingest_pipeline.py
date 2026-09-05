@@ -7,6 +7,7 @@ Stages (see ARCHITECTURE.md):
 """
 
 import json
+import shutil
 import sqlite3
 from pathlib import Path
 
@@ -155,9 +156,14 @@ def _run_extraction(
         track.set_feature_json(json.dumps(feature_json))
         track.set_features(convert(track.get_feature_json()))
         track.set_duration_sec(duration)
-    finally:
+    except Exception:
+        # DSP failed: drop any partial sidecar so Phase 2 / retries never
+        # read stale data, then propagate. On success the sidecar is kept:
+        # Phase 2 (--mood-only) needs the file to exist, and its own
+        # finally block cleans it up.
         if essentia_output.exists():
             essentia_output.unlink()
+        raise
 
     # Phase 2: Mood extraction (unless no_mood)
     if not no_mood:
