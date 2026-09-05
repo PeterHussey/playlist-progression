@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from .track import Track
 from .clap_similarity import rank_by_similarity, partition_quantile_bands
-from .constraint_filter import ConstraintFilter, relax_mood_box, key_slot, key_steps, key_verdict, tempo_ok, _parsed_sidecar
+from .constraint_filter import ConstraintFilter, relax_mood_box
 
 DEFAULT_SCHEDULE = ["Near", "Mid", "Far", "Mid", "Near"]
 
@@ -53,10 +53,7 @@ class PlaylistSampler:
             while not survivors and box and relaxed < 3:
                 box = relax_mood_box(box)
                 relaxed += 1
-                f = ConstraintFilter({**self.filter.__dict__, "mood_box": box,
-                                       "key_max_steps": self.filter.key_max_steps,
-                                       "tempo_max_step_pct": self.filter.tempo_max_step_pct,
-                                       "allow_missing_mood": self.filter.allow_missing_mood})
+                f = ConstraintFilter({**self.filter.__dict__, "mood_box": box})
                 survivors = f.filter(current, candidates)
             if not survivors:
                 break

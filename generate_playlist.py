@@ -65,10 +65,12 @@ def main(argv=None):
     tracks = []
     feature_vectors = []
     for row in rows:
+        clap_embedding = None if row["clap_embedding"] is None else json.loads(row["clap_embedding"])
         t = Track(id=row["id"], file_path=Path(row["file_path"]),
                   title=row["title"], artist=row["artist"],
                   duration_sec=row["duration_sec"] or 0.0,
-                  feature_json=row["feature_json"])
+                  feature_json=row["feature_json"],
+                  clap_embedding=clap_embedding)
         vec = convert(row["feature_json"])
         raw = json.loads(row["feature_json"] or "{}")
         t.set_features(vec)
