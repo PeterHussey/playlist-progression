@@ -14,5 +14,7 @@ essentia_*.json
 clap_*.json
 branch_playlist.json
 playlist_summary.txt
+# Local worktrees (isolated implementation workspaces)
+/.worktrees/
 # Local real-audio test fixtures (not committed)
 /test-playlist-music/
