@@ -2,9 +2,12 @@
 
 A weekend-scale Python prototype for music similarity and playlist generation from local audio files.
 
+> Direction: **CLAP-primary similarity** — see `docs/CHARTER.md` (objective/scope/decisions),
+> `docs/ROADMAP.md` (milestones + progress tracker), `docs/FEATURE_IDEAS.md` (deferred ideas).
+
 ## Overview
 
-Ingests local audio files → extracts Essentia DSP features + optional CLAP embeddings via subprocess → stores in SQLite → generates a JSON playlist using a branching recommender (near/mid/far distance bands + axis-controlled jumps).
+Ingests local audio files → extracts CLAP embeddings (primary similarity) + Essentia DSP/mood features (constraint gates) via subprocess → stores in SQLite → generates a JSON playlist using CLAP cosine similarity with quantile Near/Mid/Far bands + Essentia-gated progression.
 
 ## Branching Methodology
 
@@ -53,56 +56,54 @@ Total: **20 dimensions** per track, stored as JSON in `tracks.feature_json`.
 - Loudness uses EBU R128 (`LoudnessEBUR128`), which requires stereo input (mono is duplicated).
 - **Mood descriptors** come from pre-trained Essentia MusiCNN TensorFlow classifiers (one binary model per mood). Each model's activation column is selected from its `classes` metadata and averaged over time frames. Models download automatically to `models/` on first use and require `essentia-tensorflow` + TensorFlow. If mood prediction fails for a track, the DSP features are still stored and the `mood` key is left NULL (not zero-filled); the next run retries mood via `--mood-only`. The 7 mood axes participate in the playlist distance computation.
 
-**CLAP (semantic embeddings)** — `scripts/extract_clap.py` runs LAION-CLAP (via `laion-clap` Python package) to produce a 512-dim embedding vector per track. Stored as JSON array in `tracks.clap_embedding`. Optional — pipeline works without it.
+**CLAP (primary similarity)** — `scripts/extract_clap.py` runs LAION-CLAP (via `laion-clap` Python package) to produce a 512-dim embedding vector per track. Stored as JSON array in `tracks.clap_embedding`. Distance is L2-normalized cosine (`src/recommender/clap_similarity.py`); bands are rank quantiles (`partition_quantile_bands`, defaults near 0.10 / mid 0.40). Required for the default sampler — run with `--clap --batch`.
 
-### Distance Computation
+**Essentia (constraint gates)** — the 20 DSP/mood axes above feed `src/recommender/constraint_filter.py` (tempo window, key compatibility, mood box + relax), not a distance measure.
 
-`BranchSampler.compute_distance()` uses **standardised weighted Euclidean distance** across the feature axes:
+### Distance Computation (primary: CLAP)
+
+`PlaylistSampler` ranks candidates by CLAP cosine similarity to the current track and partitions the ranking into quantile bands:
 
 ```
-distance = sqrt( Σ weight[i] * (z_a[i] - z_b[i])² )
+similarity = cosine(l2_norm(seed), l2_norm(candidate))
+distance   = 1 - similarity   # ∈ [0, 2], typically [0, 1]
 ```
 
-Where `z = (value - population_mean) / population_stddev` per axis. Axis weights are configurable (default 1.0). Population statistics are computed across the full library at sampler initialisation.
+Near = top 10% most similar, Mid = next 30%, Far = rest (quantile thresholds configurable via `near_quantile` / `mid_quantile`). Essentia gates filter candidates *before* ranking; mood-box relaxation (up to 3 steps) and global-nearest-by-CLAP fallback apply when gates are empty.
 
-CLAP embeddings are **not used for distance** in this prototype — they're stored for future semantic similarity experiments.
+Legacy path (deprecated): `BranchSampler.compute_distance()` used standardised weighted Euclidean distance across the 20 Essentia axes (`sqrt( Σ weight[i] * (z_a[i] - z_b[i])² )`, z-scored per axis). Retained only behind `--sampler essentia`; removal waits on the subset scale test (see `docs/ROADMAP.md` M5). Evidence for deprecation: 17-track Spearman ρ = 0.078, NN match 5.9% (`docs/comparison-clap-vs-essentia.md`); 49-track blinded A/B verdict ship-clap-as-default (`docs/eval/blinded-2026-09-05/REPORT.md`).
 
-### Three Distance Bands
+### Three Distance Bands (quantile-based, CLAP)
 
-Given a seed track, candidates are partitioned by standardised distance:
+Given the current track, CLAP-ranked candidates are partitioned by rank quantile:
 
-| Band | Threshold | Purpose |
-|------|-----------|---------|
-| **Near** | `d ≤ 0.3σ` | Close neighbours — minimal perceptual change. Establishes mood/groove. |
-| **Mid** | `0.3σ < d ≤ 0.7σ` | Moderate jumps — noticeable shift but related. Drives transitions. |
-| **Far-but-directed** | `d > 0.7σ` on all axes **except** `hold_axis`, where `d ≤ 0.3σ` | Large leaps anchored by one constant quality (e.g., same tempo, different mood). Creates contrast/surprise. |
+| Band | Quantile (defaults) | Purpose |
+|------|---------------------|---------|
+| **Near** | top 10% (`near_quantile=0.10`) | Close neighbours — minimal perceptual change. Establishes mood/groove. |
+| **Mid** | next 30% (up to `mid_quantile=0.40`) | Moderate jumps — noticeable shift but related. Drives transitions. |
+| **Far** | rest | Large leaps after Essentia gating — contrast/surprise. |
 
-### Directed Jump Algorithm
+Legacy σ bands (`d ≤ 0.3σ` / `0.3σ < d ≤ 0.7σ` / far-but-directed) apply to the deprecated Essentia path only.
 
-`select_directed_jump(seed, candidates, hold_axis)`:
+### Essentia gating (not distance)
 
-1. Compute full distance on all feature axes
-2. Compute distance on all axes **except** `hold_axis` (zero out that dimension)
-3. Compute distance on `hold_axis` only
-4. Candidate qualifies if: `non_hold_distance > 0.7σ` **AND** `hold_distance ≤ 0.3σ`
+Before CLAP ranking, `ConstraintFilter` gates candidates: tempo window around the current (optionally drifted) BPM, key compatibility, and a mood box with up to 3 relaxation steps. Empty gates → global-nearest-by-CLAP fallback, recorded in `reason`.
 
-Example: `hold_axis="tempo.bpm"` → playlist jumps far in timbre/mood/key while keeping tempo constant.
-
-### Playlist Generation Flow
+### Playlist Generation Flow (primary)
 
 ```
 seed track
     │
-    ├─► select_near()  ──► pick 1 ──► next seed
+    ├─► gate (Essentia) ──► rank (CLAP) ──► Near pick ──► next seed
     │
-    ├─► select_mid()   ──► pick 1 ──► next seed
+    ├─► gate (Essentia) ──► rank (CLAP) ──► Mid pick  ──► next seed
     │
-    └─► select_directed_jump(hold_axis="tempo.bpm") ──► pick 1 ──► next seed
+    └─► gate (Essentia) ──► rank (CLAP) ──► Far pick  ──► next seed
     │
-    └─► repeat until playlist length reached or candidates exhausted
+    └─► repeat per band schedule (default Near→Mid→Far→Mid→Near) until limit or candidates exhausted
 ```
 
-Fallback: if a band is empty, pick the globally nearest unvisited track, label it with its actual band (by distance thresholds), and record the fallback in `reason` (e.g. `"Fallback: scheduled Near empty, global-nearest (actual Mid) from seed"`). Band matches are sorted nearest-first, so the nearest candidate within a band is always picked.
+Fallback: if gates are empty, pick global-nearest-by-CLAP ignoring gates and record it in `reason` (e.g. `"Fallback: gates empty, global-nearest-by-CLAP (sched Near)"`). Within a band the most similar candidate is picked first.
 
 ### Output
 
@@ -123,8 +124,8 @@ Fallback: if a band is empty, pick the globally nearest unvisited track, label i
 - **Subprocess integration**: Java-free — calls Essentia CLI and CLAP Python scripts via `subprocess.run()`
 - **Essentia DSP features**: loudness (EBU R128), tempo/BPM, key/scale + circle-of-fifths key distance, danceability, spectral centroid/rolloff/flatness
 - **Mood descriptors**: 7 mood scores (happy, sad, aggressive, relaxed, electronic, party, acoustic) via pre-trained Essentia MusiCNN TensorFlow classifiers, included in similarity distance
-- **SQLite storage**: `tracks` table with feature JSON and optional CLAP embeddings
-- **Branching recommender**: 3 distance bands — near (≤0.3σ), mid (0.3–0.7σ), far-but-directed (≥0.7σ along specific axis, holding one descriptor constant)
+- **SQLite storage**: `tracks` table with feature JSON and CLAP embeddings
+- **CLAP-primary recommender**: quantile bands over cosine similarity (Near top 10%, Mid next 30%, Far rest) with Essentia tempo/key/mood gates; legacy Essentia-Euclidean path deprecated behind `--sampler essentia`
 - **JSON output**: `branch_playlist.json` with seed info, distance band per track, reason string
 
 ## Quick Start
@@ -141,7 +142,9 @@ make run MUSIC_DIR=/path/to/your/music
 # or directly:
 python3 run.py /path/to/your/music database/playlist.db
 # useful flags:
-#   --clap              also extract CLAP embeddings (requires laion-clap)
+#   --clap              extract CLAP embeddings (required for default --sampler clap; needs laion-clap)
+#   --sampler {clap,essentia}  playlist backend (default: clap; essentia is deprecated legacy)
+#   --config PATH       JSON config for clap sampler (quantiles, gates, schedule, drift)
 #   --re-extract        re-extract tracks already in the database
 #   --timeout SEC       overall extraction timeout (default 180s, env EXTRACT_TIMEOUT_SEC)
 #   --dsp-timeout SEC   DSP-phase timeout (default 60s)
@@ -159,7 +162,9 @@ python3 run.py /path/to/music database/playlist.db --generate-playlist --seed-ti
 #   --seed-title STR    substring to match in track title (case-insensitive)
 #   --limit N           playlist entries after seed (default 9)
 #   --output PATH       output JSON path (default: branch_playlist.json)
-#   --hold-axis AXIS    hold axis for directed jumps (default: tempo.bpm)
+#   --hold-axis AXIS    legacy Essentia directed-jump axis (default: tempo.bpm; ignored by clap sampler)
+#   --sampler {clap,essentia}  playlist backend (default: clap)
+#   --config PATH       JSON config for clap sampler
 ```
 
 Extraction runs in two phases per track (DSP first, then mood); a mood
@@ -219,18 +224,21 @@ playlist-progression/
 ├── src/recommender/          # Core pipeline
 │   ├── track.py              # Track dataclass
 │   ├── feature_extractor.py  # Subprocess wrapper for extraction scripts
-│   ├── feature_converter.py  # Axis layout (AXIS_NAMES) + JSON→vector convert()
+│   ├── feature_converter.py  # Essentia axis layout (AXIS_NAMES) + JSON→vector convert() for gates
 │   ├── ingest_pipeline.py    # Main entry: scan → extract → store
-│   ├── branch_sampler.py     # Distance bands + directed jumps
+│   ├── playlist_sampler.py   # Primary sampler: CLAP rank + Essentia gates (default)
+│   ├── clap_similarity.py    # CLAP cosine + quantile bands
+│   ├── constraint_filter.py  # Essentia tempo/key/mood gates
+│   ├── branch_sampler.py     # Deprecated: Essentia Euclidean distance (behind --sampler essentia)
 │   └── playlist_writer.py    # JSON output
 ├── scripts/
-│   ├── extract_essentia.py   # Essentia CLI wrapper
-│   └── extract_clap.py       # CLAP embedding wrapper
-├── docs/                     # Architecture, schema, integration, branching design
+│   ├── extract_essentia.py   # Essentia CLI wrapper (gates)
+│   └── extract_clap.py       # CLAP embedding wrapper (primary similarity)
+├── docs/                     # CHARTER, ROADMAP, FEATURE_IDEAS + architecture/schema/integration/branching/eval
 ├── database/init.db          # SQLite schema
 ├── run.py                    # CLI entry point
 ├── Makefile                  # run, init-db, clean targets
-└── requirements.txt          # essentia-tensorflow, tinytag, tensorflow (laion-clap optional, installed separately)
+└── requirements.txt          # essentia-tensorflow, tinytag, tensorflow (laion-clap for CLAP, installed separately)
 ```
 
 ## Scope Boundaries
