@@ -12,6 +12,19 @@ def test_spearman_perfect_and_inverse():
     assert abs(ev.spearman([1.0, 2.0, 3.0], [3.0, 2.0, 1.0]) + 1.0) < 1e-9
 
 
+def test_candidate_pool_spearman_uses_shared_pool():
+    ess = {"a": 0.1, "b": 0.5, "c": 0.9, "d": 0.4, "e": 0.7}
+    clap = {"a": 0.2, "b": 0.4, "c": 0.8, "d": 0.6, "e": 0.3}
+    rho, n = ev.candidate_pool_spearman(ess, clap)
+    assert n == 5
+    assert -1.0 <= rho <= 1.0
+
+
+def test_candidate_pool_spearman_needs_overlap():
+    rho, n = ev.candidate_pool_spearman({"a": 0.1}, {"b": 0.9})
+    assert (rho, n) == (None, 0)
+
+
 def test_band_means_separates():
     entries = [{"band": "Near", "distance": 0.1}, {"band": "Near", "distance": 0.3},
                {"band": "Far", "distance": 0.8}]
@@ -65,3 +78,5 @@ def test_main_runs_both_paths(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "Legacy" in out
     assert "CLAP" in out
+    assert "different scales" in out
+    assert "candidate pool" in out

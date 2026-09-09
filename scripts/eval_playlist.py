@@ -22,7 +22,7 @@ from src.recommender.branch_sampler import BranchSampler
 from src.recommender.constraint_filter import (
     _parsed_sidecar, key_slot, key_steps, key_verdict, tempo_ok,
 )
-from src.recommender.clap_similarity import cosine_similarity
+from src.recommender.clap_similarity import cosine_similarity, l2_normalize
 
 
 def spearman(x: list[float], y: list[float]) -> float:
@@ -50,6 +50,24 @@ def _ranks(v: list[float]) -> list[float]:
             ranks[order[k]] = avg
         i = j + 1
     return ranks
+
+
+def candidate_pool_spearman(
+    essentia_by_id: dict, clap_by_id: dict
+) -> tuple[float | None, int]:
+    """Rank correlation over the shared candidate pool (not chosen playlists).
+
+    Correlating only the tracks both samplers happened to pick is meaningless
+    (near-disjoint sets → n ≤ 2). This compares both distance maps over every
+    candidate present in both, so n scales with library size. Returns
+    (rho, n); rho is None when fewer than 2 candidates are shared.
+    """
+    shared = sorted(set(essentia_by_id) & set(clap_by_id))
+    if len(shared) < 2:
+        return None, len(shared)
+    x = [float(essentia_by_id[i]) for i in shared]
+    y = [float(clap_by_id[i]) for i in shared]
+    return spearman(x, y), len(shared)
 
 
 def band_means(entries: list[dict]) -> dict[str, float]:
@@ -102,8 +120,8 @@ def _anchor_meta(seed: Track, entries: list[dict], tracks_by_id: dict[int, Track
     return meta
 
 
-def _run_legacy(seed: Track, tracks: list[tuple[Track, dict]], limit: int) -> list[dict]:
-    """Run legacy BranchSampler path and return entry dicts."""
+def _essentia_sampler(tracks: list[tuple[Track, dict]]) -> BranchSampler:
+    """Build the legacy BranchSampler over the library's feature vectors."""
     feature_vectors = [convert(t.feature_json) for t, _ in tracks]
     n_axes = len(AXIS_NAMES)
     means, stddevs = [], []
@@ -114,8 +132,13 @@ def _run_legacy(seed: Track, tracks: list[tuple[Track, dict]], limit: int) -> li
         variance = sum((v - mean) ** 2 for v in values) / len(values)
         stddevs.append(math.sqrt(variance) if variance > 0 else 1.0)
     axis_index = {name: i for i, name in enumerate(AXIS_NAMES)}
-    sampler = BranchSampler(axis_weights=[1.0] * n_axes, axis_index=axis_index,
-                            axis_stddevs=stddevs, axis_means=means)
+    return BranchSampler(axis_weights=[1.0] * n_axes, axis_index=axis_index,
+                         axis_stddevs=stddevs, axis_means=means)
+
+
+def _run_legacy(seed: Track, tracks: list[tuple[Track, dict]], limit: int) -> list[dict]:
+    """Run legacy BranchSampler path and return entry dicts."""
+    sampler = _essentia_sampler(tracks)
     schedule = ["Near", "Mid", "Far", "Mid", "Near"]
     visited = {seed.id}
     current = seed
@@ -225,7 +248,7 @@ def main(argv=None) -> None:
     legacy_meta = _anchor_meta(seed, legacy_entries, tracks_by_id)
     legacy_adh = anchor_adherence(legacy_meta)
     legacy_bm = band_means(legacy_entries)
-    print(f"\n=== Legacy (Essentia) path ===")
+    print("\n=== Legacy (Essentia) path ===")
     print(f"Playlist length: {len(legacy_entries)}")
     print(f"Anchor adherence: {legacy_adh}")
     print(f"Band means: {legacy_bm}")
@@ -238,7 +261,7 @@ def main(argv=None) -> None:
     clap_meta = _anchor_meta(seed, clap_entries, tracks_by_id)
     clap_adh = anchor_adherence(clap_meta)
     clap_bm = band_means(clap_entries)
-    print(f"\n=== CLAP path ===")
+    print("\n=== CLAP path ===")
     print(f"Playlist length: {len(clap_entries)}")
     print(f"Anchor adherence: {clap_adh}")
     print(f"Band means: {clap_bm}")
@@ -247,8 +270,36 @@ def main(argv=None) -> None:
         print(f"Key violation steps: {key_violations}")
 
     # ---- Spearman between Essentia distance and CLAP cosine distance ----
-    # Build paired distances for consecutive entries that exist in both playlists
-    all_ids = [e["track_id"] for e in legacy_entries]
+    # Pool-level correlation: both distance maps over every candidate present
+    # in both (not just the near-disjoint chosen playlists). The legacy-only
+    # intersection below is kept for reference but is not the headline metric.
+    ess_sampler = _essentia_sampler(tracks)
+    seed_norm = None
+    if seed.clap_embedding:
+        seed_norm = l2_normalize(list(seed.clap_embedding))
+    ess_by_id: dict[int, float] = {}
+    clap_by_id: dict[int, float] = {}
+    for t, _ in tracks:
+        if t.id == seed.id:
+            continue
+        try:
+            ess_by_id[t.id] = ess_sampler.compute_distance(seed, t)
+        except Exception:
+            pass
+        if seed_norm is not None and t.clap_embedding:
+            clap_by_id[t.id] = 1.0 - cosine_similarity(
+                seed_norm, l2_normalize(list(t.clap_embedding)))
+
+    print("\n=== Cross-metric correlation ===")
+    print("Note: CLAP cosine distance and Essentia z-Euclidean distance are on "
+          "different scales; cross-sampler distances are not directly comparable.")
+    pool_rho, pool_n = candidate_pool_spearman(ess_by_id, clap_by_id)
+    if pool_rho is not None:
+        print(f"Spearman over candidate pool (Essentia vs CLAP): {pool_rho:.4f}  (n={pool_n})")
+    else:
+        print(f"Spearman over candidate pool: n/a (need 2+ shared candidates, have {pool_n})")
+
+    # Legacy reference: paired distances for entries chosen by both playlists
     clap_dist_map = {e["track_id"]: e["distance"] for e in clap_entries}
     essentia_dists = []
     clap_dists = []
@@ -269,7 +320,8 @@ def main(argv=None) -> None:
             clap_dists.append(clap_dist_map[tid])
         prev_id = tid
 
-    print(f"\n=== Cross-metric correlation ===")
+    print("\n=== Chosen-playlist overlap (reference only) ===")
+    print("Only tracks picked by BOTH samplers; near-disjoint sets make this n/a.")
     if len(essentia_dists) >= 2:
         rho = spearman(essentia_dists, clap_dists)
         print(f"Spearman (Essentia dist vs CLAP dist): {rho:.4f}  (n={len(essentia_dists)})")
