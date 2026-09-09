@@ -2,18 +2,21 @@
 # - sqlite3, subprocess, json, dataclasses, pathlib, argparse
 # - typing (stdlib since Python 3.5+)
 
+# Pins verified 2026-09-09 on macOS Python 3.12 (.venv).
+# laion-clap stays a separate optional install (see AGENTS.md; tested: laion_clap 1.1.7).
+
 # Essentia with TensorFlow support (provides the `essentia` module with
 # TensorflowPredict* algorithms for mood classification). Install plain
 # `essentia` instead only if you don't need mood features.
-essentia-tensorflow>=2.1b6.dev1389
+essentia-tensorflow==2.1b6.dev1389
 
 # Metadata extraction (ID3/Vorbis tags)
-tinytag>=1.10.0
+tinytag==2.3.1
 
 # TensorFlow runtime (required by essentia-tensorflow for model inference)
-tensorflow>=2.10.0
+tensorflow==2.21.0
 
 # Audio DSP for CLAP fusion embeddings (laion-clap's fusion path computes
 # mel spectrograms via torchaudio; without it every CLAP extraction fails).
 # laion-clap itself stays a separate optional install (see AGENTS.md).
-torchaudio
+torchaudio==2.11.0
