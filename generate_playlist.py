@@ -8,9 +8,11 @@ Usage:
                                 [--output JSON] [--summary TXT]
 """
 import argparse
-import sqlite3, json
+import json
+import sqlite3
 from pathlib import Path
-import sys, math
+import math
+import sys
 sys.path.insert(0, '.')
 from src.recommender.track import Track
 from src.recommender.branch_sampler import BranchSampler
@@ -47,6 +49,38 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--config", type=Path, default=None,
                         help="JSON config file for clap sampler (optional)")
     return parser.parse_args(argv)
+
+
+def write_text_summary(summary_path, seed, tracks, playlist_entries, schedule, hold_axis):
+    """Write the human-readable playlist_summary.txt for either sampler path."""
+    selected_ids = [seed.id] + [e["track_id"] for e in playlist_entries]
+    selected_data = [item for item in tracks if item[0].id in selected_ids]
+    selected_data.sort(key=lambda x: selected_ids.index(x[0].id))
+    lines = []
+    lines.append("=" * 60)
+    lines.append("PLAYLIST SUMMARY")
+    lines.append("=" * 60)
+    lines.append(f"Seed: id={seed.id} '{seed.get_title() or 'Unknown'}' by {seed.get_artist() or 'Unknown'}")
+    lines.append(f"Schedule: {' -> '.join(schedule)} ({len(selected_ids)} tracks)")
+    lines.append(f"Hold axis: {hold_axis}")
+    lines.append("")
+    for idx, (t, raw) in enumerate(selected_data):
+        band_label = playlist_entries[idx-1]["band"] if idx > 0 else "SEED"
+        lines.append(f"{idx}. id={t.id} | {band_label}")
+        lines.append(f"   '{t.get_title() or 'Unknown'}' - {t.get_artist() or 'Unknown'}")
+        loud = raw.get("loudness", {})
+        tempo = raw.get("tempo", {})
+        spec = raw.get("spectral", {})
+        rhythm = raw.get("rhythm", {})
+        mood = raw.get("mood", {})
+        lines.append(f"   Duration: {raw.get('duration_sec', 0):.1f}s | Loudness: {loud.get('integrated', 0):.1f} LUFS (range {loud.get('range', 0):.1f})")
+        lines.append(f"   Tempo: {tempo.get('bpm', 0):.0f} BPM (conf {tempo.get('confidence', 0):.2f}) | Key: {raw.get('key', {}).get('scale', 'N/A')}")
+        lines.append(f"   Spectral: centroid={spec.get('centroid', 0):.0f} Hz, rolloff={spec.get('rolloff', 0):.0f} Hz, flatness={spec.get('flatness', 0):.3f}")
+        lines.append(f"   Rhythm: danceability={rhythm.get('danceability', 0):.2f}, onset_rate={rhythm.get('onset_rate', 0):.1f}/sec")
+        lines.append(f"   Mood: happy={mood.get('happy', 0):.2f}, sad={mood.get('sad', 0):.2f}, aggressive={mood.get('aggressive', 0):.2f}, "
+                     f"relaxed={mood.get('relaxed', 0):.2f}, electronic={mood.get('electronic', 0):.2f}, party={mood.get('party', 0):.2f}, acoustic={mood.get('acoustic', 0):.2f}")
+        lines.append("")
+    summary_path.write_text("\n".join(lines) + "\n")
 
 
 def main(argv=None):
@@ -138,7 +172,6 @@ def main(argv=None):
             config.update(_json.loads(args.config.read_text()))
         sampler = PlaylistSampler(config)
         stats = sampler.load_library([t for t, _ in tracks])
-        # Clap path intentionally skips playlist_summary.txt (legacy parity gap, see plan §6)
         if stats["clap_coverage"] == 0:
             print("Error: --sampler clap needs CLAP embeddings but database has none "
                   "-- re-run ingestion with --clap, or use --sampler essentia",
@@ -155,7 +188,11 @@ def main(argv=None):
             for e in clapped_entries
         ]
         write_playlist(args.output, seed, playlist_entries)
+        write_text_summary(args.summary, seed, tracks, playlist_entries,
+                           config["band_schedule"],
+                           "n/a (clap sampler ignores --hold-axis)")
         print(f"\nPlaylist JSON: {args.output}")
+        print(f"Text summary: {args.summary}")
         return
     visited = {seed.id}
     current = seed
@@ -179,12 +216,16 @@ def main(argv=None):
         fell_back = False
         if selected is None:
             fell_back = True
-            best = None; best_dist = float("inf")
+            best = None
+            best_dist = float("inf")
             for cand in candidates:
                 d = sampler.compute_distance(current, cand)
-                if d < best_dist: best_dist = d; best = cand
+                if d < best_dist:
+                    best_dist = d
+                    best = cand
             selected = best
-        if selected is None: break
+        if selected is None:
+            break
         d = sampler.compute_distance(current, selected)
         if fell_back:
             near_thr = sampler.band_thresholds["near"]
@@ -205,34 +246,7 @@ def main(argv=None):
         current = selected
         print(f"  {band_label}: id={selected.id} '{selected.get_title() or 'Unknown'}' distance={d:.3f}")
     write_playlist(args.output, seed, playlist_entries)
-    selected_ids = [seed.id] + [e["track_id"] for e in playlist_entries]
-    selected_data = [item for item in tracks if item[0].id in selected_ids]
-    selected_data.sort(key=lambda x: selected_ids.index(x[0].id))
-    lines = []
-    lines.append("=" * 60)
-    lines.append("PLAYLIST SUMMARY")
-    lines.append("=" * 60)
-    lines.append(f"Seed: id={seed.id} '{seed.get_title() or 'Unknown'}' by {seed.get_artist() or 'Unknown'}")
-    lines.append(f"Schedule: {' -> '.join(schedule)} ({len(selected_ids)} tracks)")
-    lines.append(f"Hold axis: {args.hold_axis}")
-    lines.append("")
-    for idx, (t, raw) in enumerate(selected_data):
-        band_label = playlist_entries[idx-1]["band"] if idx > 0 else "SEED"
-        lines.append(f"{idx}. id={t.id} | {band_label}")
-        lines.append(f"   '{t.get_title() or 'Unknown'}' - {t.get_artist() or 'Unknown'}")
-        loud = raw.get("loudness", {})
-        tempo = raw.get("tempo", {})
-        spec = raw.get("spectral", {})
-        rhythm = raw.get("rhythm", {})
-        mood = raw.get("mood", {})
-        lines.append(f"   Duration: {raw.get('duration_sec', 0):.1f}s | Loudness: {loud.get('integrated', 0):.1f} LUFS (range {loud.get('range', 0):.1f})")
-        lines.append(f"   Tempo: {tempo.get('bpm', 0):.0f} BPM (conf {tempo.get('confidence', 0):.2f}) | Key: {raw.get('key', {}).get('scale', 'N/A')}")
-        lines.append(f"   Spectral: centroid={spec.get('centroid', 0):.0f} Hz, rolloff={spec.get('rolloff', 0):.0f} Hz, flatness={spec.get('flatness', 0):.3f}")
-        lines.append(f"   Rhythm: danceability={rhythm.get('danceability', 0):.2f}, onset_rate={rhythm.get('onset_rate', 0):.1f}/sec")
-        lines.append(f"   Mood: happy={mood.get('happy', 0):.2f}, sad={mood.get('sad', 0):.2f}, aggressive={mood.get('aggressive', 0):.2f}, "
-                     f"relaxed={mood.get('relaxed', 0):.2f}, electronic={mood.get('electronic', 0):.2f}, party={mood.get('party', 0):.2f}, acoustic={mood.get('acoustic', 0):.2f}")
-        lines.append("")
-    args.summary.write_text("\n".join(lines) + "\n")
+    write_text_summary(args.summary, seed, tracks, playlist_entries, schedule, args.hold_axis)
     print(f"\nPlaylist JSON: {args.output}")
     print(f"Text summary: {args.summary}")
 if __name__ == "__main__":

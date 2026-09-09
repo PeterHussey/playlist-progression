@@ -160,3 +160,6 @@ def test_clap_embedding_loaded_from_db(tmp_path, monkeypatch):
     data = json.loads(out.read_text())
     assert len(data["playlist"]) == 1
     assert data["playlist"][0]["id"] == 2  # the near candidate
+    text = summ.read_text()
+    assert "PLAYLIST SUMMARY" in text
+    assert "Seed" in text
