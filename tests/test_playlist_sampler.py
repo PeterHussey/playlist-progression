@@ -48,6 +48,33 @@ def test_missing_clap_excluded_by_default():
     assert s.generate(seed, limit=1) == []
 
 
+def test_small_library_greedy_skips_bands():
+    """Spec §6 guard: <20 candidates → greedy nearest, scheduled label kept."""
+    seed = _mk(1, [1.0, 0.0])
+    a = _mk(2, [0.0, 1.0])
+    b = _mk(3, [0.9, 0.1])
+    s = PlaylistSampler(_config(band_schedule=["Far"], mood_box={}))
+    s.load_library([seed, a, b])
+    entries = s.generate(seed, limit=1)
+    assert len(entries) == 1
+    assert entries[0]["track_id"] == 3  # nearest by CLAP
+    assert entries[0]["band"] == "Far"  # scheduled label kept
+    assert "Small library" in entries[0]["reason"]
+
+
+def test_large_library_uses_bands():
+    """≥20 candidates → normal quantile-band path, no greedy reason."""
+    tracks = [_mk(1, [1.0, 0.0])]
+    for i in range(2, 27):
+        tracks.append(_mk(i, [1.0 - i * 0.01, i * 0.01]))
+    s = PlaylistSampler(_config(band_schedule=["Near"], mood_box={}))
+    s.load_library(tracks)
+    entries = s.generate(tracks[0], limit=1)
+    assert len(entries) == 1
+    assert "CLAP pick" in entries[0]["reason"]
+    assert "Small library" not in entries[0]["reason"]
+
+
 def _sidecar(bpm=120.0):
     return {
         "version": "1.1",

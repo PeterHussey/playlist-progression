@@ -6,6 +6,10 @@ from .constraint_filter import ConstraintFilter, relax_mood_box
 
 DEFAULT_SCHEDULE = ["Near", "Mid", "Far", "Mid", "Near"]
 
+# Spec §6 guard: quantile bands are unstable on small libraries —
+# fewer candidates → rank-ordered greedy, bands skipped, logged.
+MIN_CANDIDATES_FOR_BANDS = 20
+
 
 class PlaylistSampler:
     def __init__(self, config: dict) -> None:
@@ -105,6 +109,21 @@ class PlaylistSampler:
                             current = nxt
                             continue
                 break
+            if len(ranked) < MIN_CANDIDATES_FOR_BANDS:
+                # Spec §6 guard: quantiles are unstable on small libraries —
+                # pick rank-ordered greedy, keep the scheduled label, log it.
+                pick_id, sim = ranked[0]
+                nxt = self._by_id[pick_id]
+                reason = (f"Small library (n={len(ranked)}<{MIN_CANDIDATES_FOR_BANDS}): "
+                          f"greedy nearest-by-CLAP (sched {band})"
+                          + (f", mood relaxed x{relaxed}" if relaxed else ""))
+                entries.append({"position": step + 1, "track_id": nxt.id,
+                                "title": nxt.get_title(), "artist": nxt.get_artist(),
+                                "band": band, "distance": round(1.0 - sim, 4),
+                                "reason": reason})
+                visited.add(nxt.id)
+                current = nxt
+                continue
             bands = partition_quantile_bands(ranked, self.near_q, self.mid_q)
             pick = None
             actual = band
