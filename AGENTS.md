@@ -106,7 +106,8 @@ pytest
 
 # Lint new/touched files only (keep diffs reviewable; no wholesale format pass)
 ruff check <touched-paths>
-# e.g. ruff check src/recommender/ scripts/eval_playlist.py tests/
+# e.g. ruff check scripts/eval_playlist.py tests/test_eval_playlist.py tests/test_key_extraction.py
+# (CI checks these paths; expand coverage as other files are touched — see .github/workflows/ci.yml)
 
 # Run QA script (verifies structure, DB init, imports, sampler, JSON output)
 bash tests/run_qa.sh
