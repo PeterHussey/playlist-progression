@@ -156,4 +156,10 @@ bash tests/run_qa.sh
 
 ---
 
+## Post-Commit
+
+**Always update `docs/ROADMAP.md` after a commit.** Flip checkboxes (⬜→✅), update status lines, or add new items as needed. The roadmap is the single source of truth for milestone progress; letting it drift from commit history creates duplicate audit work.
+
+---
+
 **`.gitignore` excludes:** `.venv/`, `__pycache__/`, `*.db-journal`, `*.db-wal`, `*.db-shm`, `essentia_*.json`, `clap_*.json`, `branch_playlist.json`
