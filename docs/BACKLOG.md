@@ -1,5 +1,10 @@
 # Backlog — playlist-progression next steps
 
+> **Status (2026-09-09):** Historical log. `ROADMAP.md` is the only tracker;
+> `CHARTER.md` holds objective/scope/decisions. §8 CLAP-for-distance and §10
+> comparison are done; §11 open items are folded into ROADMAP M2 (eval hardening)
+> and M3 (subset scale test).
+
 Session basis: 17-track test playlist run (real audio), key-extraction fixed
 (frame-wise KeyExtractor), playlist regenerated with real keys. Mood description
 (7 axes) implemented; metadata extraction done; QA suite modernized. Full list of

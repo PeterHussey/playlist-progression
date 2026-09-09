@@ -40,9 +40,12 @@ playlist-progression/
 ├── src/recommender/          # Core pipeline
 │   ├── track.py              # Track dataclass
 │   ├── feature_extractor.py  # Subprocess wrapper for extraction scripts
-│   ├── feature_converter.py  # Axis layout (AXIS_NAMES) + JSON→vector convert()
+│   ├── feature_converter.py  # Axis layout (AXIS_NAMES) + JSON→vector convert() for gates
 │   ├── ingest_pipeline.py    # Main entry: scan → extract → store
-│   ├── branch_sampler.py     # Distance bands + directed jumps
+│   ├── playlist_sampler.py   # Primary sampler: CLAP rank + Essentia gates (default)
+│   ├── clap_similarity.py    # CLAP cosine + quantile bands
+│   ├── constraint_filter.py  # Essentia tempo/key/mood gates
+│   ├── branch_sampler.py     # Deprecated: Essentia Euclidean distance (behind --sampler essentia)
 │   └── playlist_writer.py    # JSON output
 ├── scripts/
 │   ├── extract_essentia.py   # Essentia CLI wrapper (20 axes via feature_converter.py)
@@ -73,9 +76,9 @@ playlist-progression/
 
 ## Branching Algorithm (Key Design)
 
-**Distance:** Standardised weighted Euclidean across the feature axes (z-scored per axis using population mean/stddev). Axis layout is owned by `src/recommender/feature_converter.py` (`AXIS_NAMES` + `convert()`) — read it, don't copy axis lists from here.
+**Distance (primary: CLAP):** Cosine similarity over L2-normalized 512-dim CLAP embeddings (`src/recommender/clap_similarity.py`, `playlist_sampler.py`), partitioned into rank-quantile bands. Axis layout for the Essentia gates is owned by `src/recommender/feature_converter.py` (`AXIS_NAMES` + `convert()`) — read it, don't copy axis lists from here.
 
-**Bands:** Near (`d ≤ 0.3σ`) → Mid (`0.3σ < d ≤ 0.7σ`) → Far-but-directed (`d > 0.7σ` except `hold_axis ≤ 0.3σ`). Default schedule: Near → Mid → Far → Mid → Near. Full design (weights, pseudocode, fallback order): `docs/BRANCHING.md`.
+**Bands:** Near (top 10%, `near_quantile=0.10`) → Mid (next 30%, up to `mid_quantile=0.40`) → Far (rest). Default schedule: Near → Mid → Far → Mid → Near. Essentia tempo/key/mood gates filter candidates *before* CLAP ranking (`src/recommender/constraint_filter.py`). Legacy Essentia σ bands (`d ≤ 0.3σ` / `0.3σ < d ≤ 0.7σ` / far-but-directed) apply to the deprecated path only (`--sampler essentia`). Full design: `docs/BRANCHING.md` (legacy) + `README.md` (primary).
 
 ---
 
@@ -91,7 +94,7 @@ Count, order, and names are owned by `src/recommender/feature_converter.py` (`AX
 
 Non-obvious semantics worth knowing inline: `key.fifths_x`/`key.fifths_y` are cos/sin coordinates on a 24-slot circle of fifths where relative major/minor are adjacent (C–Am = 1 step, C–G = 2 steps, C–F# = 12 steps); unknown key/mode → (0, 0). `key.confidence` is retained as a separate reliability axis.
 
-**CLAP embeddings** (optional): 512-dim, stored in `clap_embedding` TEXT as a JSON array (matches `init_database()` runtime DDL). **Not used for distance** in this prototype.
+**CLAP embeddings** (default path): 512-dim, stored in `clap_embedding` TEXT as a JSON array (matches `init_database()` runtime DDL). Primary similarity via cosine in `playlist_sampler.py`; use `--sampler essentia` only for the deprecated legacy comparison.
 
 ---
 
@@ -100,6 +103,10 @@ Non-obvious semantics worth knowing inline: `key.fifths_x`/`key.fifths_y` are co
 ```bash
 # Run tests (network tests skipped by default)
 pytest
+
+# Lint new/touched files only (keep diffs reviewable; no wholesale format pass)
+ruff check <touched-paths>
+# e.g. ruff check src/recommender/ scripts/eval_playlist.py tests/
 
 # Run QA script (verifies structure, DB init, imports, sampler, JSON output)
 bash tests/run_qa.sh
