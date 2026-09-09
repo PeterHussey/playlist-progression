@@ -2,7 +2,7 @@
 
 A weekend-scale Python prototype for music similarity and playlist generation from local audio files.
 
-> Direction: **CLAP-primary similarity** — see `docs/CHARTER.md` (objective/scope/decisions),
+> Direction: **CLAP-primary similarity** — see `PROJECT.md` (objective/criteria/scope/decisions),
 > `docs/ROADMAP.md` (milestones + progress tracker), `docs/FEATURE_IDEAS.md` (deferred ideas).
 
 ## Overview

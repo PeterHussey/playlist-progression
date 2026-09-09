@@ -1,7 +1,7 @@
 # Backlog — playlist-progression next steps
 
 > **Status (2026-09-09):** Historical log. `ROADMAP.md` is the only tracker;
-> `CHARTER.md` holds objective/scope/decisions. §8 CLAP-for-distance and §10
+> `PROJECT.md` holds objective/criteria/scope/decisions. §8 CLAP-for-distance and §10
 > comparison are done; §11 open items are folded into ROADMAP M2 (eval hardening)
 > and M3 (subset scale test).
 

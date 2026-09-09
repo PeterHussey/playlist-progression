@@ -23,7 +23,7 @@
 
 **Files:**
 - Modify: `docs/ARCHITECTURE.md` (full rewrite of Pipeline, Integration, Schema Overview, Branching, Scope, Decisions sections)
-- Reference (read-only): `src/recommender/ingest_pipeline.py:64-89` (single `tracks` table DDL), `run.py:32-132` (CLI flags), `src/recommender/playlist_sampler.py:1-80` (CLAP-primary path), `src/recommender/branch_sampler.py` (deprecated path), `docs/CHARTER.md`, `docs/SCHEMA.md`
+- Reference (read-only): `src/recommender/ingest_pipeline.py:64-89` (single `tracks` table DDL), `run.py:32-132` (CLI flags), `src/recommender/playlist_sampler.py:1-80` (CLAP-primary path), `src/recommender/branch_sampler.py` (deprecated path), `PROJECT.md`, `docs/SCHEMA.md`
 
 **Interfaces:**
 - Consumes: `init_database()` DDL as schema source of truth; `run_pipeline()` signature as pipeline source of truth.
@@ -91,7 +91,7 @@ git commit -m "docs: update AGENTS.md to CLAP-primary reality"
 
 **Files:**
 - Modify: `docs/BACKLOG.md`
-- Reference: `docs/ROADMAP.md`, `docs/CHARTER.md`
+- Reference: `docs/ROADMAP.md`, `PROJECT.md`
 
 **Interfaces:**
 - Consumes: Tasks 1-2.
@@ -103,7 +103,7 @@ Prepend to `docs/BACKLOG.md`:
 
 ```markdown
 > **Status (2026-09-09):** Historical log. ROADMAP.md is the only tracker;
-> CHARTER.md holds decisions. §8 CLAP-for-distance and §10 comparison are done;
+> `PROJECT.md` holds decisions. §8 CLAP-for-distance and §10 comparison are done;
 > §11 open items are folded into ROADMAP M2/M3 (eval hardening, subset test).
 ```
 

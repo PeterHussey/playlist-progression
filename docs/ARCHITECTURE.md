@@ -1,6 +1,6 @@
 # Architecture Design — Playlist Progression Prototype
 
-> **Status:** Weekend-scale Python prototype, CLAP-primary similarity. See `CHARTER.md` (objective/scope/decisions), `ROADMAP.md` (milestones), `SCHEMA.md` (exact DDL).
+> **Status:** Weekend-scale Python prototype, CLAP-primary similarity. See `PROJECT.md` (objective/criteria/scope/decisions), `ROADMAP.md` (milestones), `SCHEMA.md` (exact DDL).
 
 ## Overview
 
@@ -111,7 +111,7 @@ The sampler maintains a candidate list from the CLAP-ranked, Essentia-gated surv
 ## Scope Boundaries
 
 This project is deliberately scoped as a **weekend-scale prototype**, not a
-production system. The following boundaries apply (see `CHARTER.md` §2):
+production system. The following boundaries apply (see `PROJECT.md` Out of scope):
 
 - **Local library only.** The system reads files from a local directory tree. There
   is no Spotify API integration, no streaming-service authentication, and no

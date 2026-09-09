@@ -1,7 +1,7 @@
 # Roadmap — playlist-progression
 
-> The only place with checkboxes and milestones. Charter (`CHARTER.md`) holds
-> objective/scope/decisions. Feature ideas (`FEATURE_IDEAS.md`) are deferred by default.
+> The only place with checkboxes and milestones. `PROJECT.md` holds
+> objective/criteria/scope/decisions. Feature ideas (`FEATURE_IDEAS.md`) are deferred by default.
 
 Status legend: ✅ done · 🔶 in progress · ⬜ open
 
@@ -16,7 +16,7 @@ Status legend: ✅ done · 🔶 in progress · ⬜ open
 ## M1 — Docs truth ✅
 
 - ✅ README flipped to CLAP-primary (`a3f6a47`).
-- ✅ `docs/CHARTER.md`, `docs/ROADMAP.md` (this file), `docs/FEATURE_IDEAS.md` created (`a3f6a47`).
+- ✅ `docs/CHARTER.md` (later demoted to `PROJECT.md` on 2026-09-09), `docs/ROADMAP.md` (this file), `docs/FEATURE_IDEAS.md` created (`a3f6a47`).
 - ✅ `docs/ARCHITECTURE.md` rewrite (Java/`ProcessBuilder` → Python
   `ingest_pipeline.py` + subprocess; single-table `tracks` schema; batch worker notes)
   (`e8171a5`). Acceptance: no mention of Java orchestrator, three-table schema, or "CLAP unused".
