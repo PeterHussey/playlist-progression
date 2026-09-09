@@ -17,6 +17,7 @@ sys.path.insert(0, '.')
 from src.recommender.track import Track
 from src.recommender.branch_sampler import BranchSampler
 from src.recommender.playlist_writer import write_playlist, make_entry
+from src.recommender.playlist_export import export_playlists
 from src.recommender.feature_converter import AXIS_NAMES, convert
 
 DEFAULT_DB = Path("database/playlist.db")
@@ -48,6 +49,9 @@ def parse_args(argv=None) -> argparse.Namespace:
                         help="Playlist sampler backend (default: clap)")
     parser.add_argument("--config", type=Path, default=None,
                         help="JSON config file for clap sampler (optional)")
+    parser.add_argument("--export", choices=["m3u", "pls", "all"], default=None,
+                        help="Also write M3U/PLS exports next to the JSON output "
+                             "(sibling files sharing the --output stem)")
     return parser.parse_args(argv)
 
 
@@ -81,6 +85,17 @@ def write_text_summary(summary_path, seed, tracks, playlist_entries, schedule, h
                      f"relaxed={mood.get('relaxed', 0):.2f}, electronic={mood.get('electronic', 0):.2f}, party={mood.get('party', 0):.2f}, acoustic={mood.get('acoustic', 0):.2f}")
         lines.append("")
     summary_path.write_text("\n".join(lines) + "\n")
+
+
+def maybe_export(args, seed, tracks, playlist_entries):
+    """Write M3U/PLS siblings when --export is set (seed first, in order)."""
+    if not args.export:
+        return
+    id_map = {t.id: t for t, _ in tracks}
+    ordered = [seed] + [id_map[e["track_id"]] for e in playlist_entries
+                        if e["track_id"] in id_map]
+    for export_path in export_playlists(args.output, ordered, fmt=args.export):
+        print(f"Export playlist: {export_path}")
 
 
 def main(argv=None):
@@ -191,6 +206,7 @@ def main(argv=None):
         write_text_summary(args.summary, seed, tracks, playlist_entries,
                            config["band_schedule"],
                            "n/a (clap sampler ignores --hold-axis)")
+        maybe_export(args, seed, tracks, playlist_entries)
         print(f"\nPlaylist JSON: {args.output}")
         print(f"Text summary: {args.summary}")
         return
@@ -247,6 +263,7 @@ def main(argv=None):
         print(f"  {band_label}: id={selected.id} '{selected.get_title() or 'Unknown'}' distance={d:.3f}")
     write_playlist(args.output, seed, playlist_entries)
     write_text_summary(args.summary, seed, tracks, playlist_entries, schedule, args.hold_axis)
+    maybe_export(args, seed, tracks, playlist_entries)
     print(f"\nPlaylist JSON: {args.output}")
     print(f"Text summary: {args.summary}")
 if __name__ == "__main__":

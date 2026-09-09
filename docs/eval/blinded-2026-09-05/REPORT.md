@@ -117,5 +117,8 @@ docs/eval/blinded-2026-09-05/
 ├── s1-A.json  s1-B.json
 ├── s2-A.json  s2-B.json
 ├── s3-A.json  s3-B.json
-└── EAR_TEST.md
+├── s1-A.m3u/.pls  s1-B.m3u/.pls   (playable exports of the recorded
+├── s2-A.m3u/.pls  s2-B.m3u/.pls    JSONs — faithful conversion via
+├── s3-A.m3u/.pls  s3-B.m3u/.pls    scripts/export_eval_playlists.py,
+└── EAR_TEST.md                     no regeneration; blinding preserved)
 ```

@@ -129,6 +129,13 @@ def main() -> None:
         default=None,
         help="JSON config file for clap sampler (optional)",
     )
+    parser.add_argument(
+        "--export",
+        choices=["m3u", "pls", "all"],
+        default=None,
+        help="Also write M3U/PLS exports next to the playlist JSON "
+             "(only with --generate-playlist)",
+    )
     args = parser.parse_args()
 
     music_dir = Path(args.music_dir)
@@ -171,6 +178,8 @@ def main() -> None:
             ]
             if args.config:
                 sys.argv.extend(["--config", args.config])
+            if args.export:
+                sys.argv.extend(["--export", args.export])
             generate_playlist_main()
         except Exception as e:
             print(f"Error generating playlist: {e}", file=sys.stderr)

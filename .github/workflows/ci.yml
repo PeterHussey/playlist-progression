@@ -9,5 +9,5 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt "ruff==0.14.*" pytest
-      - run: ruff check scripts/eval_playlist.py tests/test_eval_playlist.py tests/test_key_extraction.py src/recommender/playlist_sampler.py tests/test_playlist_sampler.py generate_playlist.py
+      - run: ruff check scripts/eval_playlist.py tests/test_eval_playlist.py tests/test_key_extraction.py src/recommender/playlist_sampler.py tests/test_playlist_sampler.py generate_playlist.py src/recommender/playlist_export.py tests/test_playlist_export.py run.py scripts/export_eval_playlists.py
       - run: python -m pytest -q
