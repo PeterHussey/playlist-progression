@@ -8,8 +8,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
-def _sidecar(version, duration=200.0, bpm=120.0):
-    return {
+def _sidecar(version, duration=200.0, bpm=120.0, schema_hash=None):
+    from src.recommender.feature_converter import SCHEMA_HASH
+    d = {
         "version": version,
         "duration_sec": duration,
         "loudness": {"integrated": -10.0, "range": 5.0},
@@ -21,6 +22,11 @@ def _sidecar(version, duration=200.0, bpm=120.0):
         "rhythm": {"danceability": 0.5, "onset_rate": 1.0},
         "mood": {},
     }
+    if schema_hash is not None:
+        d["schema_hash"] = schema_hash
+    elif version:
+        d["schema_hash"] = SCHEMA_HASH
+    return d
 
 
 def _seed_db(db_path, rows):
@@ -50,8 +56,11 @@ def _seed_db(db_path, rows):
 def test_extractor_version_single_source():
     from scripts.extract_essentia import EXTRACTOR_VERSION
     from src.recommender.ingest_pipeline import _current_extractor_version
+    from src.recommender.feature_converter import SCHEMA_HASH
 
-    assert _current_extractor_version() == EXTRACTOR_VERSION
+    ver, hsh = _current_extractor_version()
+    assert ver == EXTRACTOR_VERSION
+    assert hsh == SCHEMA_HASH
     assert EXTRACTOR_VERSION == "1.1"
 
 
@@ -59,13 +68,15 @@ def test_process_file_skips_current_version(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     from src.recommender.ingest_pipeline import process_file
     from scripts.extract_essentia import EXTRACTOR_VERSION
+    from src.recommender.feature_converter import SCHEMA_HASH
 
     audio = tmp_path / "song.mp3"
     audio.touch()
     conn = _seed_db(
         tmp_path / "t.db",
         [(str(audio), "Old Title", 111.0,
-          _sidecar(EXTRACTOR_VERSION, duration=111.0))],
+          _sidecar(EXTRACTOR_VERSION, duration=111.0,
+                   schema_hash=SCHEMA_HASH))],
     )
     from unittest.mock import patch
 
@@ -110,6 +121,64 @@ def test_process_file_reextracts_stale_version(tmp_path, monkeypatch):
         "SELECT feature_json, duration_sec FROM tracks").fetchone()
     assert json.loads(row[0])["version"] == "1.1"
     assert row[1] == 222.0
+    conn.close()
+
+
+def test_process_file_reextracts_schema_hash_mismatch(tmp_path, monkeypatch):
+    """Sidecar has current version but stale schema_hash → re-extract."""
+    monkeypatch.chdir(tmp_path)
+    from src.recommender.ingest_pipeline import process_file
+    from scripts.extract_essentia import EXTRACTOR_VERSION
+
+    audio = tmp_path / "song.mp3"
+    audio.touch()
+    conn = _seed_db(
+        tmp_path / "t.db",
+        [(str(audio), "Title", 100.0,
+          _sidecar(EXTRACTOR_VERSION, duration=100.0,
+                   schema_hash="old_hash_abc"))],
+    )
+    from unittest.mock import patch
+
+    def fake_extract(audio_path, output_path, **kwargs):
+        if kwargs.get("mood_only"):
+            Path(output_path).write_text(
+                json.dumps({"mood": {}}))
+        else:
+            Path(output_path).write_text(
+                json.dumps(_sidecar(EXTRACTOR_VERSION, duration=200.0)))
+
+    with patch("src.recommender.ingest_pipeline.extract_essentia",
+               side_effect=fake_extract) as m:
+        track, status = process_file(conn, audio)
+    assert status == "re-extracted"
+    assert m.call_count == 2
+    assert track.get_duration_sec() == 200.0
+    conn.close()
+
+
+def test_process_file_skips_legacy_sidecar_no_hash(tmp_path, monkeypatch):
+    """Legacy sidecar (no schema_hash) with matching version → skip."""
+    monkeypatch.chdir(tmp_path)
+    from src.recommender.ingest_pipeline import process_file
+    from scripts.extract_essentia import EXTRACTOR_VERSION
+
+    audio = tmp_path / "song.mp3"
+    audio.touch()
+    sidecar = _sidecar(EXTRACTOR_VERSION, duration=50.0)
+    sidecar.pop("schema_hash", None)  # legacy: no hash
+    conn = _seed_db(
+        tmp_path / "t.db",
+        [(str(audio), "Legacy", 50.0, sidecar)],
+    )
+    from unittest.mock import patch
+
+    with patch(
+        "src.recommender.ingest_pipeline.extract_essentia",
+        side_effect=RuntimeError("must not be called"),
+    ):
+        track, status = process_file(conn, audio)
+    assert status == "skipped"
     conn.close()
 
 
@@ -169,7 +238,12 @@ def test_playlist_cli_seed_and_outputs(tmp_path, monkeypatch, capsys):
     data = json.loads(out.read_text())
     assert data["seed"]["id"] == 2
     assert data["seed"]["title"] == "Beta"
+    assert "file" in data["seed"], "seed should have 'file' key"
+    assert data["seed"]["file"] == "/m/b.mp3"
     assert len(data["playlist"]) == 2
+    for entry in data["playlist"]:
+        assert "file" in entry, "each entry should have 'file' key"
+        assert entry["file"].startswith("/m/")
     text = summ.read_text()
     assert "Beta" in text and "Hold axis: tempo.bpm" in text
     capsys.readouterr()

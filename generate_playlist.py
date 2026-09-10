@@ -193,9 +193,11 @@ def main(argv=None):
                   file=sys.stderr)
             sys.exit(1)
         clapped_entries = sampler.generate(seed, args.limit)
+        id_map = {t.id: t for t, _ in tracks}
         playlist_entries = [
             make_entry(
                 position=e["position"], track_id=e["track_id"],
+                file_path=str(id_map[e["track_id"]].get_file_path()),
                 title=e["title"], artist=e["artist"],
                 band=e["band"], distance=e["distance"],
                 reason=e["reason"],
@@ -255,6 +257,7 @@ def main(argv=None):
             reason = f"{band} band transition from seed"
         playlist_entries.append(make_entry(
             position=step+1, track_id=selected.id,
+            file_path=str(selected.get_file_path()),
             title=selected.get_title(), artist=selected.get_artist(),
             band=band_label, distance=round(d, 4),
             reason=reason))

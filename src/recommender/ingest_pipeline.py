@@ -15,7 +15,7 @@ from tinytag import TinyTag
 
 from .track import Track
 from .feature_extractor import extract_essentia, extract_clap, run_batch, run_clap_batch, ensure_mood_models
-from .feature_converter import convert
+from .feature_converter import convert, SCHEMA_HASH
 
 
 # Supported audio extensions (lowercase)
@@ -89,27 +89,30 @@ def init_database(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
-def _stored_version(feature_json: str | None) -> str | None:
-    """Return the extractor version recorded in a stored sidecar, if any."""
+def _stored_version(feature_json: str | None) -> tuple[str | None, str | None]:
+    """Return (version, schema_hash) from a stored sidecar, or (None, None)."""
     try:
-        return json.loads(feature_json or "{}").get("version")
+        d = json.loads(feature_json or "{}")
+        return (d.get("version"), d.get("schema_hash"))
     except (json.JSONDecodeError, AttributeError):
-        return None
+        return (None, None)
 
 
-def _current_extractor_version() -> str | None:
-    """Return the current extractor version, or None if undeterminable.
+def _current_extractor_version() -> tuple[str | None, str | None]:
+    """Return (version, schema_hash) for the current extraction code.
 
-    Single source of truth is EXTRACTOR_VERSION in scripts/extract_essentia.py.
-    Returns None (version check disabled) when the scripts package is not
-    importable, so ingestion degrades to the legacy skip-if-present behaviour.
+    Single source of truth for version: EXTRACTOR_VERSION in scripts/extract_essentia.py.
+    Single source of truth for schema_hash: SCHEMA_HASH in feature_converter.py.
+    Returns (None, None) when the scripts package is not importable, so
+    ingestion degrades to the legacy skip-if-present behaviour.
     """
     try:
         from scripts.extract_essentia import EXTRACTOR_VERSION
 
-        return EXTRACTOR_VERSION
+        version = EXTRACTOR_VERSION
     except Exception:
-        return None
+        version = None
+    return (version, SCHEMA_HASH)
 
 
 def _run_extraction(
@@ -148,6 +151,7 @@ def _run_extraction(
     try:
         extract_essentia(audio_file, essentia_output, timeout=dsp_eff, no_mood=True)
         feature_json = json.loads(essentia_output.read_text())
+        feature_json["schema_hash"] = SCHEMA_HASH
         duration = float(feature_json.get("duration_sec", 0.0) or 0.0)
         conn.execute(
             "UPDATE tracks SET feature_json = ?, duration_sec = ? WHERE id = ?",
@@ -174,6 +178,7 @@ def _run_extraction(
             parsed = json.loads(track.get_feature_json() or "{}")
             if "mood" in mood_json:
                 parsed["mood"] = mood_json["mood"]
+            parsed["schema_hash"] = SCHEMA_HASH
             conn.execute(
                 "UPDATE tracks SET feature_json = ? WHERE id = ?",
                 (json.dumps(parsed), track_id),
@@ -239,10 +244,13 @@ def process_file(
         "SELECT * FROM tracks WHERE file_path = ?", (path_str,)
     ).fetchone()
     if row is not None:
-        stored = _stored_version(row[5])
-        current = _current_extractor_version()
+        stored_ver, stored_hash = _stored_version(row[5])
+        current_ver, current_hash = _current_extractor_version()
         stale = row[5] is None or (
-            current is not None and stored != current
+            current_ver is not None and stored_ver != current_ver
+        ) or (
+            stored_hash is not None and current_hash is not None
+            and stored_hash != current_hash
         )
         if not force and not stale:
             # Return existing track (no extraction needed)
@@ -365,9 +373,14 @@ def _run_pipeline_batch(
             "SELECT * FROM tracks WHERE file_path = ?", (path_str,)
         ).fetchone()
         if row is not None and not force:
-            stored = _stored_version(row[5])
-            current = _current_extractor_version()
-            stale = row[5] is None or (current is not None and stored != current)
+            stored_ver, stored_hash = _stored_version(row[5])
+            current_ver, current_hash = _current_extractor_version()
+            stale = row[5] is None or (
+                current_ver is not None and stored_ver != current_ver
+            ) or (
+                stored_hash is not None and current_hash is not None
+                and stored_hash != current_hash
+            )
             if not stale:
                 existing_tracks.append((Track(
                     id=row[0],
@@ -453,6 +466,7 @@ def _run_pipeline_batch(
             # Read sidecar and store to DB
             try:
                 sidecar = json.loads(output_file.read_text())
+                sidecar["schema_hash"] = SCHEMA_HASH
                 output_file.unlink(missing_ok=True)
             except Exception as e:
                 print(f"  failed reading sidecar for {audio_file.name}: {e}")

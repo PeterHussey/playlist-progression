@@ -1,5 +1,6 @@
 """Shared feature converter — removes duplicated axis knowledge."""
 from __future__ import annotations
+import hashlib
 import json
 import math
 
@@ -12,6 +13,13 @@ AXIS_NAMES = [
     "mood.electronic", "mood.party", "mood.acoustic",
     "key.fifths_x", "key.fifths_y",
 ]
+
+# Short hash of AXIS_NAMES — changes when the feature layout changes.
+# Stored in sidecars alongside EXTRACTOR_VERSION so stale-row detection
+# can distinguish "version bumped, schema unchanged" from "schema changed".
+SCHEMA_HASH = hashlib.sha256(
+    repr(tuple(AXIS_NAMES)).encode()
+).hexdigest()[:12]
 
 # Circle-of-fifths order (12 pitch classes, enharmonic-normalised).
 FIFTHS_ORDER = ["C", "G", "D", "A", "E", "B", "F#", "Db", "Ab", "Eb", "Bb", "F"]

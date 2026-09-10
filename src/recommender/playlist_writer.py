@@ -6,11 +6,12 @@ each track was selected.
 
 Output format:
 {
-  "seed": { "id": ..., "title": "...", "artist": "..." },
+  "seed": { "id": ..., "file": "...", "title": "...", "artist": "..." },
   "playlist": [
     {
       "position": 1,
       "id": 5,
+      "file": "...",
       "title": "...",
       "artist": "...",
       "band": "Near",
@@ -57,6 +58,7 @@ def _build_playlist_json(seed: Track, entries: list[dict[str, object]]) -> str:
     # seed
     lines.append('  "seed": {')
     lines.append(f'    "id": {_json_value(seed.get_id())},')
+    lines.append(f'    "file": {_json_value(str(seed.get_file_path()))},')
     s_title = seed.get_title() or ""
     s_artist = seed.get_artist() or ""
     lines.append(f'    "title": {_json_value(s_title)},')
@@ -69,6 +71,7 @@ def _build_playlist_json(seed: Track, entries: list[dict[str, object]]) -> str:
         lines.append("    {")
         lines.append(f'      "position": {entry["position"]},')
         lines.append(f'      "id": {entry["track_id"]},')
+        lines.append(f'      "file": {_json_value(entry.get("file", ""))},')
         t = entry.get("title") or ""
         a = entry.get("artist") or ""
         lines.append(f'      "title": {_json_value(t)},')
@@ -102,6 +105,7 @@ def write_playlist(output_path: Path, seed: Track, entries: list[dict[str, objec
 def make_entry(
     position: int,
     track_id: int,
+    file_path: str,
     title: str | None,
     artist: str | None,
     band: str,
@@ -113,6 +117,7 @@ def make_entry(
     Args:
         position: 1-based position in the playlist
         track_id: database row ID of the track
+        file_path: absolute path to the audio file
         title: track title
         artist: artist name
         band: "Near", "Mid", or "Far"
@@ -125,6 +130,7 @@ def make_entry(
     return {
         "position": position,
         "track_id": track_id,
+        "file": file_path,
         "title": title,
         "artist": artist,
         "band": band,
